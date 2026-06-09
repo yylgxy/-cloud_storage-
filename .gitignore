@@ -1,0 +1,53 @@
+# Build
+build/
+cmake-build*/
+*.o
+*.a
+*.so
+*.exe
+
+# Compiled binaries (ELF executables without extension)
+common/ApiDealfile
+common/ApiDealsharefile
+common/ApiLogin
+common/ApiMd5
+common/ApiMyfiles
+common/ApiRegister
+common/ApiShareAccess
+common/ApiSharefiles
+common/ApiSliceUpload
+common/ApiUpload
+common/ngrok
+
+# Test binaries
+test_cjson
+test_fastdfs
+test_md5
+test_mysql
+test_redis
+test_update
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+.claude/
+
+# Config files (local)
+fastcgi.conf
+fastcgi_params
+nginx.conf
+*.conf
+*.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temp files
+*~
+*.new
+-d
+-H

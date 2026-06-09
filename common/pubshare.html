@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cloud Storage - 公共分享</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Segoe UI',system-ui,-apple-system,sans-serif; min-height:100vh; background:linear-gradient(135deg,#0a0a1a,#1a0a2e,#0a1628,#001a1a); color:#fff; }
+.wrap { max-width:1200px; margin:0 auto; padding:32px 24px; }
+.header { display:flex; align-items:center; justify-content:space-between; margin-bottom:32px; flex-wrap:wrap; gap:16px; }
+.header-left { display:flex; align-items:center; gap:14px; }
+.header-left a { color:rgba(255,255,255,.35); text-decoration:none; font-size:16px; transition:color .3s; }
+.header-left a:hover { color:#00d4ff; }
+.header-left h1 { font-size:22px; font-weight:700; }
+.header-left span { color:rgba(255,255,255,.35); font-size:14px; }
+.user-badge { display:flex; align-items:center; gap:8px; padding:8px 16px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.06); border-radius:14px; font-size:13px; }
+.user-badge i { color:#00d4ff; }
+.user-badge a { color:rgba(255,255,255,.5); text-decoration:none; margin-left:8px; }
+
+/* Tabs */
+.tabs { display:flex; gap:4px; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.06); border-radius:14px; padding:4px; margin-bottom:24px; width:fit-content; }
+.tab { padding:10px 24px; border:none; background:transparent; color:rgba(255,255,255,.5); font-size:14px; font-weight:500; cursor:pointer; border-radius:10px; transition:all .3s; }
+.tab.active { background:rgba(255,255,255,.08); color:#fff; }
+.tab i { margin-right:6px; }
+.tab:hover:not(.active) { color:rgba(255,255,255,.7); }
+
+.share-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:16px; }
+.share-card { padding:20px; background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.06); border-radius:16px; transition:all .3s; position:relative; overflow:hidden; }
+.share-card:hover { background:rgba(255,255,255,.04); transform:translateY(-2px); border-color:rgba(255,255,255,.1); }
+.share-card .rank-badge { position:absolute; top:12px; right:12px; width:28px; height:28px; display:flex; align-items:center; justify-content:center; border-radius:50%; font-size:13px; font-weight:700; }
+.rank-1 { background:linear-gradient(135deg,#f59e0b,#ef4444); color:#fff; box-shadow:0 4px 12px rgba(245,158,11,.3); }
+.rank-2 { background:linear-gradient(135deg,#94a3b8,#64748b); color:#fff; }
+.rank-3 { background:linear-gradient(135deg,#d97706,#92400e); color:#fff; }
+.rank-n { background:rgba(255,255,255,.06); color:rgba(255,255,255,.3); }
+
+.file-icon { width:40px; height:40px; display:flex; align-items:center; justify-content:center; border-radius:10px; font-size:18px; margin-bottom:12px; }
+.file-icon.pdf { background:rgba(239,68,68,.15); color:#ef4444; }
+.file-icon.image { background:rgba(16,185,129,.15); color:#10b981; }
+.file-icon.zip { background:rgba(245,158,11,.15); color:#f59e0b; }
+.file-icon.code { background:rgba(59,130,246,.15); color:#3b82f6; }
+.file-icon.default { background:rgba(255,255,255,.05); color:rgba(255,255,255,.4); }
+
+.share-name { font-size:15px; font-weight:600; margin-bottom:4px; }
+.share-owner { font-size:12px; color:rgba(255,255,255,.3); margin-bottom:8px; }
+.share-owner i { margin-right:4px; }
+.share-meta { font-size:12px; color:rgba(255,255,255,.3); display:flex; gap:16px; flex-wrap:wrap; margin-bottom:12px; }
+.share-meta span { display:inline-flex; align-items:center; gap:4px; }
+.share-tags { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
+.tag { display:inline-flex; align-items:center; gap:4px; padding:2px 10px; border-radius:20px; font-size:11px; font-weight:500; }
+.tag-code { background:rgba(245,158,11,.15); color:#f59e0b; border:1px solid rgba(245,158,11,.2); }
+.tag-no-code { background:rgba(255,255,255,.05); color:rgba(255,255,255,.3); border:1px solid rgba(255,255,255,.06); }
+.share-actions { display:flex; gap:6px; flex-wrap:wrap; }
+.btn { display:inline-flex; align-items:center; gap:6px; padding:8px 16px; border:none; border-radius:10px; font-size:13px; font-weight:500; cursor:pointer; transition:all .3s; color:#fff; }
+.btn-primary { background:linear-gradient(135deg,#00d4ff,#7c3aed); }
+.btn-primary:hover { transform:translateY(-1px); box-shadow:0 4px 15px rgba(0,212,255,.2); }
+.btn-outline { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.1); color:#fff; }
+.btn-outline:hover { background:rgba(255,255,255,.08); }
+.btn-sm { padding:6px 12px; font-size:12px; }
+.btn-copy { background:rgba(0,212,255,.1); border:1px solid rgba(0,212,255,.2); color:#00d4ff; }
+.btn-copy:hover { background:rgba(0,212,255,.2); }
+
+/* Code Modal */
+.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.6); backdrop-filter:blur(8px); z-index:100; display:none; align-items:center; justify-content:center; }
+.modal-overlay.show { display:flex; }
+.modal { width:380px; max-width:calc(100vw - 32px); padding:32px; background:rgba(20,10,40,.95); border:1px solid rgba(255,255,255,.08); border-radius:24px; animation:modalIn .3s; text-align:center; }
+@keyframes modalIn { from { transform:scale(.9); opacity:0; } to { transform:scale(1); opacity:1; } }
+.modal i.modal-icon { font-size:48px; color:#f59e0b; margin-bottom:16px; }
+.modal h2 { font-size:20px; margin-bottom:8px; }
+.modal p { color:rgba(255,255,255,.4); font-size:14px; margin-bottom:20px; }
+.modal input { width:100%; padding:14px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:12px; color:#fff; font-size:24px; text-align:center; letter-spacing:8px; outline:none; font-weight:600; }
+.modal input:focus { border-color:rgba(0,212,255,.4); }
+.modal-btns { display:flex; gap:12px; margin-top:20px; }
+.modal-btns .btn { flex:1; justify-content:center; padding:12px; }
+
+.pagination { display:flex; align-items:center; justify-content:center; gap:8px; margin-top:24px; }
+.page-btn { padding:8px 14px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.06); border-radius:10px; color:rgba(255,255,255,.6); cursor:pointer; font-size:14px; transition:all .3s; }
+.page-btn:hover { background:rgba(255,255,255,.08); }
+.page-btn.active { background:linear-gradient(135deg,#00d4ff,#7c3aed); border-color:transparent; color:#fff; }
+.page-btn:disabled { opacity:.3; cursor:not-allowed; }
+
+.toast { position:fixed; top:24px; right:24px; padding:14px 20px; border-radius:12px; color:#fff; font-size:14px; font-weight:500; z-index:999; backdrop-filter:blur(20px); display:none; align-items:center; gap:10px; animation:slideIn .3s ease-out; border:1px solid rgba(255,255,255,.1); }
+.toast.show { display:flex; }
+.toast.success { background:rgba(16,185,129,.9); }
+.toast.error { background:rgba(239,68,68,.9); }
+.toast.info { background:rgba(59,130,246,.9); }
+@keyframes slideIn { from { transform:translateX(100%); opacity:0; } to { transform:translateX(0); opacity:1; } }
+
+.empty-state { text-align:center; padding:80px 20px; grid-column:1/-1; }
+.empty-state i { font-size:56px; color:rgba(255,255,255,.06); margin-bottom:16px; }
+.empty-state h3 { color:rgba(255,255,255,.4); font-size:16px; font-weight:500; }
+.empty-state p { color:rgba(255,255,255,.2); font-size:13px; margin-top:4px; }
+
+@media (max-width:640px) { .share-grid { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <div class="header-left">
+      <a href="index.html"><i class="fas fa-arrow-left"></i></a>
+      <h1>公共分享</h1>
+      <span>发现和转存精彩文件</span>
+    </div>
+    <div class="user-badge">
+      <i class="fas fa-user-circle"></i><span id="userName">-</span>
+      <a href="index.html">首页</a>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchView('list')"><i class="fas fa-list"></i> 全部分享</button>
+    <button class="tab" onclick="switchView('rank')"><i class="fas fa-trophy"></i> 下载排行榜</button>
+  </div>
+
+  <div id="shareContainer">
+    <div class="share-grid" id="shareGrid">
+      <div class="empty-state"><i class="fas fa-spinner fa-spin"></i><h3>加载中...</h3></div>
+    </div>
+  </div>
+
+  <div class="pagination" id="pagination"></div>
+</div>
+
+<!-- Extract Code Modal -->
+<div class="modal-overlay" id="codeModal">
+  <div class="modal">
+    <i class="fas fa-lock modal-icon"></i>
+    <h2>需要提取码</h2>
+    <p id="codeModalFile">请输入提取码以查看该文件</p>
+    <input type="text" id="codeInput" placeholder="输入提取码" maxlength="6" autocomplete="off">
+    <div class="modal-btns">
+      <button class="btn btn-outline" onclick="closeCodeModal()">取消</button>
+      <button class="btn btn-primary" id="codeConfirmBtn" onclick="confirmCode()">验证</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let token = localStorage.getItem('cloud_token');
+if (!token) location.href='login.html';
+let user = localStorage.getItem('cloud_user') || '';
+document.getElementById('userName').textContent = user;
+
+let curView = 'list', curPage = 1;
+let pendingShareId = '', pendingFileUrl = '';
+
+function showToast(msg, type) {
+  let t = document.querySelector('.toast');
+  if (!t) { t=document.createElement('div'); t.className='toast'; document.body.appendChild(t); }
+  t.className='toast '+type+' show';
+  t.innerHTML='<i class="fas fa-'+(type==='success'?'check-circle':type==='error'?'exclamation-circle':'info-circle')+'"></i> '+msg;
+  clearTimeout(t._hide); t._hide=setTimeout(()=>t.classList.remove('show'),3000);
+}
+
+function escHtml(s) { if(!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function formatSize(bytes) { if(!bytes||bytes==0) return '--'; const u=['B','KB','MB','GB']; let i=0; let s=Number(bytes); while(s>=1024&&i<u.length-1){s/=1024;i++;} return s.toFixed(i>0?1:0)+' '+u[i]; }
+function getFileIcon(name) { const ext = (name||'').split('.').pop().toLowerCase(); if(['jpg','jpeg','png','gif','bmp','svg','webp'].includes(ext)) return {icon:'fa-image', cls:'image'}; if(['pdf'].includes(ext)) return {icon:'fa-file-pdf', cls:'pdf'}; if(['zip','rar','7z','tar','gz'].includes(ext)) return {icon:'fa-file-zipper', cls:'zip'}; if(['cpp','py','js','html','css'].includes(ext)) return {icon:'fa-file-code', cls:'code'}; return {icon:'fa-file', cls:'default'}; }
+
+function switchView(view) {
+  curView = view;
+  document.querySelectorAll('.tab').forEach((e,i) => e.classList.toggle('active', (view==='list' && i===0) || (view==='rank' && i===1)));
+  curPage = 1;
+  if (view === 'list') loadShares();
+  else loadRank();
+}
+
+async function loadShares(page) {
+  curPage = page || 1;
+  const el = document.getElementById('shareGrid');
+  try {
+    const res = await fetch('/api/sharefiles?token='+encodeURIComponent(token)+'&cmd=list&page='+curPage+'&size=12');
+    const json = await res.json();
+    if (json.code === 0) {
+      renderGrid(json.data||[]);
+      const count = json.count || json.data?.length || 0;
+      document.getElementById('pagination').innerHTML = count > 11 ? `<button class="page-btn" onclick="loadShares(${curPage-1})" ${curPage<=1?'disabled':''}><i class="fas fa-angle-left"></i></button><span style="color:rgba(255,255,255,.4);font-size:14px;padding:0 12px">${curPage}</span><button class="page-btn" onclick="loadShares(${curPage+1})"><i class="fas fa-angle-right"></i></button>` : '';
+    } else {
+      el.innerHTML = '<div class="empty-state"><i class="fas fa-globe"></i><h3>暂无分享</h3><p>还没有用户分享文件</p></div>';
+      document.getElementById('pagination').innerHTML = '';
+    }
+  } catch(e) {
+    el.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle" style="color:#ef4444"></i><h3>加载失败</h3><p>'+e.message+'</p></div>';
+  }
+}
+
+async function loadRank() {
+  const el = document.getElementById('shareGrid');
+  document.getElementById('pagination').innerHTML = '';
+  try {
+    const res = await fetch('/api/sharefiles?token='+encodeURIComponent(token)+'&cmd=rank&top=20');
+    const json = await res.json();
+    if (json.code === 0) {
+      renderRankGrid(json.data||[]);
+    } else {
+      el.innerHTML = '<div class="empty-state"><i class="fas fa-trophy"></i><h3>暂无数据</h3></div>';
+    }
+  } catch(e) {
+    el.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle" style="color:#ef4444"></i><h3>加载失败</h3><p>'+e.message+'</p></div>';
+  }
+}
+
+function renderGrid(shares) {
+  const el = document.getElementById('shareGrid');
+  if (!shares || shares.length === 0) {
+    el.innerHTML = '<div class="empty-state"><i class="fas fa-globe"></i><h3>暂无分享</h3><p>还没有用户分享文件</p></div>';
+    return;
+  }
+  el.innerHTML = shares.map(s => renderCard(s)).join('');
+}
+
+function renderRankGrid(shares) {
+  const el = document.getElementById('shareGrid');
+  if (!shares || shares.length === 0) {
+    el.innerHTML = '<div class="empty-state"><i class="fas fa-trophy"></i><h3>暂无数据</h3></div>';
+    return;
+  }
+  el.innerHTML = shares.map((s, i) => {
+    const rankCls = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : 'rank-n';
+    return `<div class="share-card">${renderCardContent(s, `<div class="rank-badge ${rankCls}">${i+1}</div>`)}</div>`;
+  }).join('');
+}
+
+function renderCard(s) { return `<div class="share-card">${renderCardContent(s, '')}</div>`; }
+
+function renderCardContent(s, extra) {
+  const fi = getFileIcon(s.file_name);
+  const hasCode = s.extract_code && s.extract_code.length > 0;
+  const shareUrl = window.location.protocol+'//'+window.location.host+'/share?shareid='+encodeURIComponent(s.share_id);
+  return `
+    ${extra}
+    <div class="file-icon ${fi.cls}"><i class="fas ${fi.icon}"></i></div>
+    <div class="share-name">${escHtml(s.file_name)}</div>
+    <div class="share-owner"><i class="fas fa-user"></i> ${escHtml(s.user_name)}</div>
+    <div class="share-meta">
+      <span>${formatSize(s.file_size)}</span>
+      <span><i class="fas fa-download" style="color:#00d4ff"></i> ${s.pv||0}</span>
+      <span>${s.create_time||''}</span>
+    </div>
+    <div class="share-tags">
+      ${hasCode ? '<span class="tag tag-code"><i class="fas fa-lock"></i> 有提取码</span>' : '<span class="tag tag-no-code">无需提取码</span>'}
+    </div>
+    <div class="share-actions">
+      <button class="btn btn-primary btn-sm" onclick="saveToMyFiles('${escHtml(s.share_id)}','${escHtml(s.file_name)}',${!!hasCode})"><i class="fas fa-cloud-arrow-down"></i> 转存</button>
+      <button class="btn btn-copy btn-sm" onclick="copyText('${shareUrl}')"><i class="fas fa-link"></i> 链接</button>
+    </div>`;
+}
+
+async function saveToMyFiles(shareId, fileName, needCode) {
+  if (needCode) {
+    pendingShareId = shareId;
+    document.getElementById('codeModalFile').textContent = '文件: '+fileName;
+    document.getElementById('codeInput').value = '';
+    document.getElementById('codeModal').classList.add('show');
+    return;
+  }
+  doSave(shareId, '');
+}
+
+function closeCodeModal() { document.getElementById('codeModal').classList.remove('show'); pendingShareId = ''; }
+
+async function confirmCode() {
+  const code = document.getElementById('codeInput').value.trim();
+  if (!code) { showToast('请输入提取码','error'); return; }
+  doSave(pendingShareId, code);
+  closeCodeModal();
+}
+
+async function doSave(shareId, code) {
+  try {
+    const url = '/share?shareid='+encodeURIComponent(shareId)+(code ? '&code='+encodeURIComponent(code) : '');
+    const verifyRes = await fetch(url);
+    const verifyJson = await verifyRes.json();
+    if (verifyJson.code !== 0) {
+      showToast(verifyJson.msg || '验证失败','error');
+      return;
+    }
+    const res = await fetch('/api/dealsharefile?token='+encodeURIComponent(token)+'&share_id='+encodeURIComponent(shareId)+'&cmd=save');
+    const json = await res.json();
+    if (json.code === 0) {
+      showToast('转存成功！文件已保存到您的网盘','success');
+      // Increment pv
+      fetch('/api/dealsharefile?token='+encodeURIComponent(token)+'&share_id='+encodeURIComponent(shareId)+'&cmd=pv').catch(()=>{});
+    } else {
+      showToast(json.msg||'转存失败','error');
+    }
+  } catch(e) { showToast('网络错误','error'); }
+}
+
+function copyText(text) {
+  navigator.clipboard.writeText(text).then(() => showToast('已复制到剪贴板','success')).catch(() => showToast('复制失败','error'));
+}
+
+// Init
+loadShares();
+</script>
+</body>
+</html>

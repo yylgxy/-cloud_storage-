@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cloud Storage - 首页</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Segoe UI',system-ui,-apple-system,sans-serif; min-height:100vh; background:linear-gradient(135deg,#0a0a1a,#1a0a2e,#0a1628,#001a1a); color:#fff; }
+.wrap { max-width:1200px; margin:0 auto; padding:32px 24px; }
+
+/* Header */
+.header { display:flex; align-items:center; justify-content:space-between; margin-bottom:48px; }
+.header-left { display:flex; align-items:center; gap:14px; }
+.header-left i { font-size:36px; background:linear-gradient(135deg,#00d4ff,#7c3aed); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+.header-left h1 { font-size:24px; font-weight:700; }
+.header-left span { color:rgba(255,255,255,.35); font-size:14px; }
+.user-info { display:flex; align-items:center; gap:12px; padding:10px 18px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.06); border-radius:16px; }
+.user-info i { font-size:20px; color:#00d4ff; }
+.user-info .name { font-weight:500; }
+.user-info .logout { padding:6px 14px; background:rgba(239,68,68,.15); border:1px solid rgba(239,68,68,.2); border-radius:10px; color:#ef4444; font-size:13px; cursor:pointer; transition:all .3s; }
+.user-info .logout:hover { background:rgba(239,68,68,.25); }
+
+/* Stats */
+.stats { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:48px; }
+.stat-card { padding:24px; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.06); border-radius:20px; text-align:center; backdrop-filter:blur(10px); transition:all .3s; cursor:default; }
+.stat-card:hover { transform:translateY(-4px); background:rgba(255,255,255,.06); }
+.stat-card i { font-size:28px; margin-bottom:8px; }
+.stat-card .num { font-size:28px; font-weight:700; margin-bottom:4px; }
+.stat-card .label { color:rgba(255,255,255,.4); font-size:13px; }
+.stat-card:nth-child(1) i { color:#00d4ff; }
+.stat-card:nth-child(2) i { color:#7c3aed; }
+.stat-card:nth-child(3) i { color:#10b981; }
+.stat-card:nth-child(4) i { color:#f59e0b; }
+
+/* Cards */
+.cards { display:grid; grid-template-columns:repeat(3,1fr); gap:20px; margin-bottom:48px; }
+.card { padding:32px; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.06); border-radius:20px; backdrop-filter:blur(10px); transition:all .3s; cursor:pointer; position:relative; overflow:hidden; }
+.card::before { content:''; position:absolute; inset:0; opacity:0; transition:opacity .3s; border-radius:20px; }
+.card:hover { transform:translateY(-6px); border-color:rgba(255,255,255,.12); box-shadow:0 20px 40px rgba(0,0,0,.3); }
+.card:hover::before { opacity:1; }
+.card:nth-child(1)::before { background:linear-gradient(135deg,rgba(0,212,255,.08),transparent); }
+.card:nth-child(2)::before { background:linear-gradient(135deg,rgba(124,58,237,.08),transparent); }
+.card:nth-child(3)::before { background:linear-gradient(135deg,rgba(16,185,129,.08),transparent); }
+.card i { font-size:36px; position:relative; z-index:1; }
+.card:nth-child(1) i { color:#00d4ff; }
+.card:nth-child(2) i { color:#7c3aed; }
+.card:nth-child(3) i { color:#10b981; }
+.card h3 { margin:16px 0 6px; font-size:18px; position:relative; z-index:1; }
+.card p { color:rgba(255,255,255,.4); font-size:14px; line-height:1.6; position:relative; z-index:1; }
+.card .arrow { position:absolute; right:24px; bottom:20px; font-size:14px; color:rgba(255,255,255,.15); transition:all .3s; }
+.card:hover .arrow { color:rgba(255,255,255,.5); transform:translateX(4px); }
+
+/* Quick Upload */
+.upload-area { padding:32px; background:rgba(255,255,255,.03); border:2px dashed rgba(255,255,255,.08); border-radius:20px; text-align:center; transition:all .3s; cursor:pointer; }
+.upload-area:hover { border-color:rgba(0,212,255,.3); background:rgba(0,212,255,.03); }
+.upload-area i { font-size:40px; color:rgba(0,212,255,.4); margin-bottom:12px; }
+.upload-area h3 { font-size:16px; font-weight:500; margin-bottom:4px; }
+.upload-area p { color:rgba(255,255,255,.3); font-size:13px; }
+
+@media (max-width:768px) { .stats { grid-template-columns:repeat(2,1fr); } .cards { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <div class="header-left">
+      <i class="fas fa-cloud"></i>
+      <div><h1>Cloud Storage</h1><span>云端存储管理平台</span></div>
+    </div>
+    <div class="user-info">
+      <i class="fas fa-user-circle"></i>
+      <span class="name" id="userName">加载中...</span>
+      <button class="logout" onclick="doLogout()">退出</button>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat-card"><i class="fas fa-files"></i><div class="num" id="statFiles">-</div><div class="label">我的文件</div></div>
+    <div class="stat-card"><i class="fas fa-share-alt"></i><div class="num" id="statShares">-</div><div class="label">已分享</div></div>
+    <div class="stat-card"><i class="fas fa-download"></i><div class="num" id="statPv">-</div><div class="label">总下载量</div></div>
+    <div class="stat-card"><i class="fas fa-hdd"></i><div class="num" id="statStorage">-</div><div class="label">存储空间</div></div>
+  </div>
+
+  <div class="cards">
+    <div class="card" onclick="location.href='myfile.html'">
+      <i class="fas fa-folder-open"></i>
+      <h3>我的文件</h3>
+      <p>管理您的个人文件，支持上传、删除、分享等操作</p>
+      <span class="arrow"><i class="fas fa-arrow-right"></i></span>
+    </div>
+    <div class="card" onclick="location.href='myshare.html'">
+      <i class="fas fa-share-nodes"></i>
+      <h3>我的分享</h3>
+      <p>查看和管理您已分享的文件链接与提取码</p>
+      <span class="arrow"><i class="fas fa-arrow-right"></i></span>
+    </div>
+    <div class="card" onclick="location.href='pubshare.html'">
+      <i class="fas fa-globe"></i>
+      <h3>公共分享</h3>
+      <p>浏览所有用户分享的文件，转存到自己的网盘</p>
+      <span class="arrow"><i class="fas fa-arrow-right"></i></span>
+    </div>
+  </div>
+
+  <div class="upload-area" onclick="location.href='myfile.html'">
+    <i class="fas fa-cloud-arrow-up"></i>
+    <h3>点击快速上传文件</h3>
+    <p>支持拖拽上传，最大 100MB</p>
+  </div>
+</div>
+
+<script>
+function checkAuth() {
+  const t = localStorage.getItem('cloud_token');
+  if (!t) { location.href='login.html'; return null; }
+  return t;
+}
+
+function doLogout() {
+  localStorage.removeItem('cloud_token');
+  localStorage.removeItem('cloud_user');
+  location.href='login.html';
+}
+
+async function loadStats() {
+  const token = checkAuth();
+  if (!token) return;
+  const user = localStorage.getItem('cloud_user') || '用户';
+  document.getElementById('userName').textContent = user;
+
+  try {
+    const res = await fetch('/api/myfiles', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({token, cmd:'count'})
+    });
+    const json = await res.json();
+    if (json.code === 0) {
+      document.getElementById('statFiles').textContent = json.count || 0;
+      document.getElementById('statPv').textContent = json.pv || 0;
+      // 格式化存储空间
+      const bytes = json.storage || 0;
+      const units = ['B','KB','MB','GB'];
+      let i = 0; let s = Number(bytes);
+      while (s >= 1024 && i < units.length-1) { s /= 1024; i++; }
+      document.getElementById('statStorage').textContent = s.toFixed(i>0?1:0) + ' ' + units[i];
+    }
+  } catch(e) {/* ignore */}
+
+  try {
+    const res = await fetch('/api/sharefiles?token='+encodeURIComponent(token)+'&cmd=count');
+    const text = await res.text();
+    let json;
+    try { json = JSON.parse(text); } catch(e) { return; }
+    if (json && json.code === 0) {
+      document.getElementById('statShares').textContent = json.count || 0;
+    }
+  } catch(e) {/* ignore */}
+}
+
+loadStats();
+</script>
+</body>
+</html>

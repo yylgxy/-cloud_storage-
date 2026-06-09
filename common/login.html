@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cloud Storage - 登录</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #0a0a1a, #1a0a2e, #0a1628, #001a1a);
+  position: relative; overflow: hidden;
+}
+body::before, body::after {
+  content: ''; position: fixed; width: 600px; height: 600px; border-radius: 50%;
+  filter: blur(120px); opacity: .15; animation: float 20s ease-in-out infinite;
+}
+body::before { background: #7c3aed; top: -200px; right: -200px; animation-delay: -5s; }
+body::after { background: #00d4ff; bottom: -200px; left: -200px; }
+@keyframes float {
+  0%,100% { transform: translate(0,0) scale(1); }
+  33% { transform: translate(30px,-30px) scale(1.1); }
+  66% { transform: translate(-20px,20px) scale(.9); }
+}
+.stars { position: fixed; inset: 0; pointer-events: none; }
+.star { position: absolute; width:2px; height:2px; background:#fff; border-radius:50%; animation:twinkle 3s ease-in-out infinite; }
+@keyframes twinkle { 0%,100% { opacity:.3; } 50% { opacity:1; } }
+.container { width:420px; padding:40px; background:rgba(255,255,255,.03); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); border:1px solid rgba(255,255,255,.06); border-radius:24px; box-shadow:0 25px 60px rgba(0,0,0,.5); position:relative; z-index:1; transition:transform .3s; }
+.container:hover { transform:translateY(-2px); }
+.logo { text-align:center; margin-bottom:32px; }
+.logo i { font-size:48px; background:linear-gradient(135deg,#00d4ff,#7c3aed); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+.logo h1 { font-size:28px; font-weight:700; background:linear-gradient(135deg,#00d4ff,#7c3aed); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; margin-top:8px; }
+.logo p { color:rgba(255,255,255,.4); font-size:14px; margin-top:4px; }
+.tabs { display:flex; gap:4px; background:rgba(255,255,255,.04); border-radius:12px; padding:4px; margin-bottom:28px; }
+.tab { flex:1; padding:10px; text-align:center; border:none; background:transparent; color:rgba(255,255,255,.5); font-size:14px; font-weight:600; cursor:pointer; border-radius:10px; transition:all .3s; }
+.tab.active { background:rgba(255,255,255,.1); color:#fff; box-shadow:0 4px 12px rgba(0,0,0,.2); }
+.form-group { margin-bottom:20px; }
+.form-group label { display:block; color:rgba(255,255,255,.6); font-size:13px; font-weight:500; margin-bottom:6px; }
+.form-group .input-wrap { display:flex; align-items:center; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:0 14px; transition:all .3s; }
+.form-group .input-wrap:focus-within { border-color:rgba(0,212,255,.4); background:rgba(255,255,255,.06); box-shadow:0 0 20px rgba(0,212,255,.08); }
+.form-group .input-wrap i { color:rgba(255,255,255,.25); font-size:16px; transition:color .3s; }
+.form-group .input-wrap:focus-within i { color:#00d4ff; }
+.form-group .input-wrap input { flex:1; background:transparent; border:none; outline:none; padding:14px 10px; color:#fff; font-size:14px; }
+.form-group .input-wrap input::placeholder { color:rgba(255,255,255,.2); }
+.btn-submit { width:100%; padding:14px; border:none; border-radius:12px; background:linear-gradient(135deg,#00d4ff,#7c3aed); color:#fff; font-size:15px; font-weight:600; cursor:pointer; transition:all .3s; }
+.btn-submit:hover { transform:translateY(-1px); box-shadow:0 8px 25px rgba(0,212,255,.25); }
+.btn-submit:disabled { opacity:.6; cursor:not-allowed; }
+.btn-submit .spinner { display:none; }
+.btn-submit.loading .spinner { display:inline-block; animation:spin 1s linear infinite; }
+.btn-submit.loading .btn-text { display:none; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.toast { position:fixed; top:24px; right:24px; padding:14px 20px; border-radius:12px; color:#fff; font-size:14px; font-weight:500; z-index:999; backdrop-filter:blur(20px); display:none; align-items:center; gap:10px; animation:slideIn .3s ease-out; border:1px solid rgba(255,255,255,.1); }
+.toast.show { display:flex; }
+.toast.success { background:rgba(16,185,129,.9); }
+.toast.error { background:rgba(239,68,68,.9); }
+@keyframes slideIn { from { transform:translateX(100%); opacity:0; } to { transform:translateX(0); opacity:1; } }
+.form-hidden { display:none; }
+@media (max-width:480px) { .container { width:calc(100% - 32px); padding:28px 24px; } }
+</style>
+</head>
+<body>
+<div class="stars" id="stars"></div>
+<div class="container">
+  <div class="logo"><i class="fas fa-cloud"></i><h1>Cloud Storage</h1><p>安全 &middot; 高效 &middot; 云端存储</p></div>
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('login')">登录</button>
+    <button class="tab" onclick="switchTab('register')">注册</button>
+  </div>
+  <form id="loginForm" onsubmit="return doLogin(event)">
+    <div class="form-group"><label>用户名</label><div class="input-wrap"><i class="fas fa-user"></i><input type="text" id="loginUser" placeholder="请输入用户名" required></div></div>
+    <div class="form-group"><label>密码</label><div class="input-wrap"><i class="fas fa-lock"></i><input type="password" id="loginPwd" placeholder="请输入密码" required></div></div>
+    <button type="submit" class="btn-submit" id="loginBtn"><span class="btn-text">登 录</span><span class="spinner"><i class="fas fa-spinner"></i></span></button>
+  </form>
+  <form id="registerForm" class="form-hidden" onsubmit="return doRegister(event)">
+    <div class="form-group"><label>用户名</label><div class="input-wrap"><i class="fas fa-user"></i><input type="text" id="regUser" placeholder="请输入用户名" required></div></div>
+    <div class="form-group"><label>昵称</label><div class="input-wrap"><i class="fas fa-id-card"></i><input type="text" id="regNick" placeholder="请输入昵称" required></div></div>
+    <div class="form-group"><label>密码</label><div class="input-wrap"><i class="fas fa-lock"></i><input type="password" id="regPwd" placeholder="密码（6位以上）" required minlength="6"></div></div>
+    <button type="submit" class="btn-submit" id="regBtn"><span class="btn-text">注 册</span><span class="spinner"><i class="fas fa-spinner"></i></span></button>
+  </form>
+</div>
+<script>
+(function(){
+  var c = document.getElementById('stars');
+  for(var i = 0; i < 80; i++) {
+    var s = document.createElement('div');
+    s.className = 'star';
+    s.style.left = Math.random() * 100 + '%';
+    s.style.top = Math.random() * 100 + '%';
+    s.style.animationDelay = Math.random() * 3 + 's';
+    s.style.width = s.style.height = (Math.random() * 2 + 1) + 'px';
+    c.appendChild(s);
+  }
+})();
+
+function switchTab(t) {
+  document.querySelectorAll('.tab').forEach(function(e) { e.classList.remove('active'); });
+  document.querySelector('.tab[onclick*="' + t + '"]').classList.add('active');
+  var login = document.getElementById('loginForm');
+  var reg = document.getElementById('registerForm');
+  if (t === 'login') {
+    login.classList.remove('form-hidden');
+    reg.classList.add('form-hidden');
+  } else {
+    reg.classList.remove('form-hidden');
+    login.classList.add('form-hidden');
+  }
+}
+
+function showToast(msg, type) {
+  var t = document.querySelector('.toast');
+  if (!t) { t = document.createElement('div'); t.className = 'toast'; document.body.appendChild(t); }
+  t.className = 'toast ' + type + ' show';
+  t.innerHTML = '<i class="fas fa-' + (type === 'success' ? 'check-circle' : 'exclamation-circle') + '"></i> ' + msg;
+  clearTimeout(t._hide);
+  t._hide = setTimeout(function() { t.classList.remove('show'); }, 3000);
+}
+
+async function doLogin(e) {
+  e.preventDefault();
+  var btn = document.getElementById('loginBtn');
+  btn.disabled = true;
+  btn.classList.add('loading');
+  var user = document.getElementById('loginUser').value.trim();
+  var pwd = document.getElementById('loginPwd').value.trim();
+  try {
+    var pwdMd5 = CryptoJS.MD5(pwd).toString();
+    var res = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: user, password: pwdMd5 })
+    });
+    var json = await res.json();
+    if (json.code === 0) {
+      localStorage.setItem('cloud_token', json.token);
+      localStorage.setItem('cloud_user', user);
+      showToast('登录成功，正在跳转...', 'success');
+      setTimeout(function() { location.href = 'index.html'; }, 800);
+    } else {
+      showToast(json.msg || '登录失败', 'error');
+    }
+  } catch(e) {
+    showToast('网络错误: ' + e.message, 'error');
+  }
+  btn.disabled = false;
+  btn.classList.remove('loading');
+}
+
+async function doRegister(e) {
+  e.preventDefault();
+  var btn = document.getElementById('regBtn');
+  btn.disabled = true;
+  btn.classList.add('loading');
+  var user = document.getElementById('regUser').value.trim();
+  var nick = document.getElementById('regNick').value.trim();
+  var pwd = document.getElementById('regPwd').value.trim();
+  try {
+    var pwdMd5 = CryptoJS.MD5(pwd).toString();
+    var res = await fetch('/api/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: user, password: pwdMd5, nickname: nick })
+    });
+    var json = await res.json();
+    if (json.code === 0) {
+      showToast('注册成功，请登录', 'success');
+      switchTab('login');
+      document.getElementById('loginUser').value = user;
+    } else {
+      showToast(json.msg || '注册失败', 'error');
+    }
+  } catch(e) {
+    showToast('网络错误: ' + e.message, 'error');
+  }
+  btn.disabled = false;
+  btn.classList.remove('loading');
+}
+
+if (localStorage.getItem('cloud_token')) { location.href = 'index.html'; }
+</script>
+</body>
+</html>
