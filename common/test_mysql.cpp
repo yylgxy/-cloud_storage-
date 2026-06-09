@@ -1,14 +1,17 @@
 #include "mysql_utils.h"
 #include <iostream>
 #include <string>
+#include <cstdlib>
 
 using namespace std;
 
 int main() {
     MySQLUtils* db = MySQLUtils::getInstance();
 
-    // 数据库信息（已适配你的ai_cloud_storage）
-    // 从环境变量读取密码，见最新 commit\ndb->initInfo("127.0.0.1", "root", "CHANGE_ME", "ai_cloud_storage", 3306);
+    // 数据库信息（从环境变量读取密码，避免硬编码）
+    const char* db_pass = getenv("DB_PASSWORD");
+    string password = db_pass ? db_pass : "CHANGE_ME";  // 运行前: export DB_PASSWORD=你的密码
+    db->initInfo("127.0.0.1", "root", password, "ai_cloud_storage", 3306);
 
     if (!db->connect()) {
         cerr << "连接失败: " << db->getError() << endl;
