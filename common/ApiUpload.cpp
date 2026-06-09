@@ -16,7 +16,6 @@
 
 #define MYSQL_HOST "127.0.0.1"
 #define MYSQL_USER "root"
-#define MYSQL_PASS "CHANGE_ME"
 #define MYSQL_DB "ai_cloud_storage"
 #define REDIS_HOST "127.0.0.1"
 #define REDIS_PORT 6379
@@ -120,7 +119,7 @@ int main() {
     RedisUtils* redis = RedisUtils::getInstance();
 
     if (!fdfs->init("/etc/fdfs/client.conf")) return 1;
-    mysql->initInfo(MYSQL_HOST, MYSQL_USER, MYSQL_PASS, MYSQL_DB);
+    mysql->initInfo(MYSQL_HOST, MYSQL_USER, MySQLUtils::getDbPassword(), MYSQL_DB);
     if (!mysql->connect()) return 1;
     redis->initInfo(REDIS_HOST, REDIS_PORT, REDIS_PASS, 0);
     if (!redis->connect()) return 1;

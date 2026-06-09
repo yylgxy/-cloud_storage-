@@ -1,4 +1,5 @@
 #include "mysql_utils.h"
+#include <cstdlib>
 using namespace std;
 MySQLUtils* MySQLUtils::instance = nullptr; //初始化单例实例指针
 MySQLUtils::MySQLUtils() : mysql(nullptr) {} //构造函数初始化mysql指针为nullptr
@@ -84,4 +85,9 @@ void MySQLUtils::destroyInstance() {
         delete instance;
         instance = nullptr;
     }
+}
+// 从环境变量读取数据库密码，避免硬编码在源代码中
+string MySQLUtils::getDbPassword() {
+    const char* pwd = getenv("DB_PASSWORD");
+    return pwd ? string(pwd) : "CHANGE_ME";
 }

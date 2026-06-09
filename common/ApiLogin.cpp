@@ -25,7 +25,7 @@ int main() {
     srand((unsigned)time(nullptr));
     // 初始化数据库
     MySQLUtils* db = MySQLUtils::getInstance();
-    db->initInfo("127.0.0.1", "root", "CHANGE_ME", "ai_cloud_storage", 3306);
+    db->initInfo("127.0.0.1", "root", MySQLUtils::getDbPassword(), "ai_cloud_storage", 3306);
 
     // 初始化Redis
     RedisUtils* redis = RedisUtils::getInstance();

@@ -114,7 +114,7 @@ int main() {
     if (!fdfs->init("/etc/fdfs/client.conf")) return 1;
 
     MySQLUtils* db = MySQLUtils::getInstance();
-    db->initInfo("127.0.0.1", "root", "CHANGE_ME", "ai_cloud_storage", 3306);
+    db->initInfo("127.0.0.1", "root", MySQLUtils::getDbPassword(), "ai_cloud_storage", 3306);
     if (!db->connect()) return 1;
 
     RedisUtils* redis = RedisUtils::getInstance();

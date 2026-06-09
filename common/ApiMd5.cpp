@@ -136,7 +136,7 @@ static void process_request(FCGX_Request& req, RedisUtils& redis) {
 
     // ---------- 4. 连接MySQL，查询用户名 ----------
     MySQLUtils db;
-    db.initInfo("127.0.0.1", "root", "CHANGE_ME", "ai_cloud_storage", 3306);
+    db.initInfo("127.0.0.1", "root", MySQLUtils::getDbPassword(), "ai_cloud_storage", 3306);
     if (!db.connect()) {
         FCGX_FPrintF(req.out,
             "Content-Type: application/json\r\n\r\n"

@@ -12,7 +12,7 @@ using namespace std;
 int main() {
     // 1. 程序启动时只初始化一次单例和数据库信息
     MySQLUtils* db = MySQLUtils::getInstance();
-    db->initInfo("127.0.0.1", "root", "CHANGE_ME", "ai_cloud_storage", 3306);
+    db->initInfo("127.0.0.1", "root", MySQLUtils::getDbPassword(), "ai_cloud_storage", 3306);
 
     // 2. 循环处理所有请求 (FastCGI核心)
     while (FCGI_Accept() >= 0) {

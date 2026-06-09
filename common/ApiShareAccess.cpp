@@ -11,7 +11,7 @@ int main() {
     MySQLUtils* db = MySQLUtils::getInstance();
     CJsonUtils* json = CJsonUtils::getInstance();
 
-    db->initInfo("127.0.0.1", "root", "CHANGE_ME", "ai_cloud_storage", 3306);
+    db->initInfo("127.0.0.1", "root", MySQLUtils::getDbPassword(), "ai_cloud_storage", 3306);
 
     while (FCGI_Accept() >= 0) {
         char resp[2048] = {0};

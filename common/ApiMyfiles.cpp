@@ -72,7 +72,7 @@ int main() {
         string user_name;
         {
             MySQLUtils* db = MySQLUtils::getInstance();
-            db->initInfo("127.0.0.1", "root", "CHANGE_ME", "ai_cloud_storage", 3306);
+            db->initInfo("127.0.0.1", "root", MySQLUtils::getDbPassword(), "ai_cloud_storage", 3306);
             if (db->connect()) {
                 char sql[1024];
                 snprintf(sql, sizeof(sql), "SELECT user_name FROM user_info WHERE id = %d LIMIT 1", user_id);
@@ -101,7 +101,7 @@ int main() {
             long long total_storage = 0;
             {
                 MySQLUtils* db = MySQLUtils::getInstance();
-                db->initInfo("127.0.0.1", "root", "CHANGE_ME", "ai_cloud_storage", 3306);
+                db->initInfo("127.0.0.1", "root", MySQLUtils::getDbPassword(), "ai_cloud_storage", 3306);
                 if (db->connect()) {
                     // 文件数
                     char sql[1024];
@@ -160,7 +160,7 @@ int main() {
             cJSON* data = cJSON_CreateArray();
             {
                 MySQLUtils* db = MySQLUtils::getInstance();
-                db->initInfo("127.0.0.1", "root", "CHANGE_ME", "ai_cloud_storage", 3306);
+                db->initInfo("127.0.0.1", "root", MySQLUtils::getDbPassword(), "ai_cloud_storage", 3306);
                 if (db->connect()) {
                     char sql[1024];
                     snprintf(sql, sizeof(sql),

@@ -38,6 +38,8 @@ class MySQLUtils
         std::string getError() const;
         //需要加一个静态方法来销毁单例实例，防止内存泄漏
         static void destroyInstance();
+        // 从环境变量 DB_PASSWORD 读取密码，避免硬编码
+        static std::string getDbPassword();
 };
 #endif
     

@@ -13,7 +13,7 @@ int main() {
     RedisUtils* redis = RedisUtils::getInstance();
     CJsonUtils* json = CJsonUtils::getInstance();
 
-    db->initInfo("127.0.0.1", "root", "CHANGE_ME", "ai_cloud_storage", 3306);
+    db->initInfo("127.0.0.1", "root", MySQLUtils::getDbPassword(), "ai_cloud_storage", 3306);
     redis->initInfo("127.0.0.1", 6379);
     redis->connect();
 

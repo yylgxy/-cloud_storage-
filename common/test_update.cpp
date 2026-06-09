@@ -3,7 +3,7 @@
 
 int main() {
     MySQLUtils* db = MySQLUtils::getInstance();
-    db->initInfo("127.0.0.1", "root", "CHANGE_ME", "ai_cloud_storage", 3306);
+    db->initInfo("127.0.0.1", "root", MySQLUtils::getDbPassword(), "ai_cloud_storage", 3306);
 
     if (!db->connect()) {
         printf("数据库连接失败: %s\n", db->getError().c_str());
