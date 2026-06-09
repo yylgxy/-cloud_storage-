@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cloud Storage - 我的文件</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Segoe UI',system-ui,-apple-system,sans-serif; min-height:100vh; background:linear-gradient(135deg,#0a0a1a,#1a0a2e,#0a1628,#001a1a); color:#fff; }
+.wrap { max-width:1200px; margin:0 auto; padding:32px 24px; }
+
+/* Header */
+.header { display:flex; align-items:center; justify-content:space-between; margin-bottom:32px; flex-wrap:wrap; gap:16px; }
+.header-left { display:flex; align-items:center; gap:14px; }
+.header-left a { color:rgba(255,255,255,.35); text-decoration:none; font-size:16px; transition:color .3s; }
+.header-left a:hover { color:#00d4ff; }
+.header-left h1 { font-size:22px; font-weight:700; }
+.header-left span { color:rgba(255,255,255,.35); font-size:14px; }
+.user-badge { display:flex; align-items:center; gap:8px; padding:8px 16px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.06); border-radius:14px; font-size:13px; }
+.user-badge i { color:#00d4ff; }
+.user-badge a { color:rgba(255,255,255,.5); text-decoration:none; margin-left:8px; }
+
+/* Toolbar */
+.toolbar { display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; flex-wrap:wrap; gap:12px; }
+.toolbar-left { display:flex; align-items:center; gap:12px; }
+.btn { display:inline-flex; align-items:center; gap:8px; padding:10px 20px; border:none; border-radius:12px; font-size:14px; font-weight:500; cursor:pointer; transition:all .3s; text-decoration:none; color:#fff; }
+.btn-primary { background:linear-gradient(135deg,#00d4ff,#7c3aed); }
+.btn-primary:hover { transform:translateY(-1px); box-shadow:0 6px 20px rgba(0,212,255,.25); }
+.btn-outline { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.1); }
+.btn-outline:hover { background:rgba(255,255,255,.08); }
+.btn-danger { background:rgba(239,68,68,.15); border:1px solid rgba(239,68,68,.2); color:#ef4444; }
+.btn-danger:hover { background:rgba(239,68,68,.25); }
+.btn-sm { padding:6px 14px; font-size:13px; border-radius:8px; }
+
+/* Upload area */
+.upload-zone { padding:40px; background:rgba(255,255,255,.02); border:2px dashed rgba(255,255,255,.08); border-radius:20px; text-align:center; margin-bottom:24px; transition:all .3s; cursor:pointer; display:none; }
+.upload-zone.show { display:block; }
+.upload-zone.dragover { border-color:#00d4ff; background:rgba(0,212,255,.05); }
+.upload-zone i { font-size:44px; color:rgba(0,212,255,.35); margin-bottom:12px; }
+.upload-zone h3 { font-size:16px; font-weight:500; }
+.upload-zone p { color:rgba(255,255,255,.3); font-size:13px; margin-top:4px; }
+.progress-wrap { display:flex; align-items:center; gap:12px; margin-top:16px; }
+.progress-bar { flex:1; height:8px; background:rgba(255,255,255,.08); border-radius:4px; overflow:hidden; }
+.progress-fill { height:100%; width:0%; background:linear-gradient(90deg,#00d4ff,#7c3aed); border-radius:4px; transition:width .3s; }
+.progress-text { font-size:13px; color:rgba(255,255,255,.5); min-width:48px; text-align:right; }
+
+/* File list */
+.file-list { background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.06); border-radius:16px; overflow:hidden; }
+.file-item { display:grid; grid-template-columns:auto 1fr auto; gap:16px; align-items:center; padding:16px 20px; border-bottom:1px solid rgba(255,255,255,.04); transition:all .3s; }
+.file-item:last-child { border-bottom:none; }
+.file-item:hover { background:rgba(255,255,255,.03); }
+.file-icon { width:44px; height:44px; display:flex; align-items:center; justify-content:center; border-radius:12px; font-size:20px; }
+.file-icon.pdf { background:rgba(239,68,68,.15); color:#ef4444; }
+.file-icon.image { background:rgba(16,185,129,.15); color:#10b981; }
+.file-icon.video { background:rgba(124,58,237,.15); color:#7c3aed; }
+.file-icon.zip { background:rgba(245,158,11,.15); color:#f59e0b; }
+.file-icon.code { background:rgba(59,130,246,.15); color:#3b82f6; }
+.file-icon.doc { background:rgba(59,130,246,.15); color:#3b82f6; }
+.file-icon.default { background:rgba(255,255,255,.05); color:rgba(255,255,255,.4); }
+.file-info .name { font-size:14px; font-weight:500; margin-bottom:2px; }
+.file-info .meta { font-size:12px; color:rgba(255,255,255,.3); display:flex; gap:16px; }
+.file-actions { display:flex; gap:6px; }
+
+/* Empty state */
+.empty-state { text-align:center; padding:60px 20px; }
+.empty-state i { font-size:56px; color:rgba(255,255,255,.06); margin-bottom:16px; }
+.empty-state h3 { color:rgba(255,255,255,.4); font-size:16px; font-weight:500; }
+.empty-state p { color:rgba(255,255,255,.2); font-size:13px; margin-top:4px; }
+
+/* Pagination */
+.pagination { display:flex; align-items:center; justify-content:center; gap:8px; margin-top:24px; }
+.page-btn { padding:8px 14px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.06); border-radius:10px; color:rgba(255,255,255,.6); cursor:pointer; font-size:14px; transition:all .3s; }
+.page-btn:hover { background:rgba(255,255,255,.08); }
+.page-btn.active { background:linear-gradient(135deg,#00d4ff,#7c3aed); border-color:transparent; color:#fff; }
+.page-btn:disabled { opacity:.3; cursor:not-allowed; }
+
+/* Share Modal */
+.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.6); backdrop-filter:blur(8px); z-index:100; display:none; align-items:center; justify-content:center; }
+.modal-overlay.show { display:flex; }
+.modal { width:440px; max-width:calc(100vw - 32px); padding:32px; background:rgba(20,10,40,.95); border:1px solid rgba(255,255,255,.08); border-radius:24px; animation:modalIn .3s; }
+@keyframes modalIn { from { transform:scale(.9); opacity:0; } to { transform:scale(1); opacity:1; } }
+.modal h2 { font-size:20px; margin-bottom:20px; }
+.modal .field { margin-bottom:16px; }
+.modal .field label { display:block; color:rgba(255,255,255,.5); font-size:13px; margin-bottom:6px; }
+.modal .field select, .modal .field input { width:100%; padding:12px 14px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:10px; color:#fff; font-size:14px; outline:none; }
+.modal .field select:focus, .modal .field input:focus { border-color:rgba(0,212,255,.4); }
+.modal .field select option { background:#1a0a2e; }
+.modal-btns { display:flex; gap:12px; margin-top:24px; }
+.modal-btns .btn { flex:1; justify-content:center; }
+
+/* Toast */
+.toast { position:fixed; top:24px; right:24px; padding:14px 20px; border-radius:12px; color:#fff; font-size:14px; font-weight:500; z-index:999; backdrop-filter:blur(20px); display:none; align-items:center; gap:10px; animation:slideIn .3s ease-out; border:1px solid rgba(255,255,255,.1); }
+.toast.show { display:flex; }
+.toast.success { background:rgba(16,185,129,.9); }
+.toast.error { background:rgba(239,68,68,.9); }
+.toast.info { background:rgba(59,130,246,.9); }
+@keyframes slideIn { from { transform:translateX(100%); opacity:0; } to { transform:translateX(0); opacity:1; } }
+
+/* Loading shimmer */
+.loading-item { padding:16px 20px; display:flex; align-items:center; gap:16px; }
+.shimmer { height:16px; background:rgba(255,255,255,.04); border-radius:8px; animation:shimmer 1.5s infinite; }
+.shimmer-sm { width:60px; height:12px; }
+@keyframes shimmer { 0% { opacity:.4; } 50% { opacity:.8; } 100% { opacity:.4; } }
+
+@media (max-width:640px) { .file-item { grid-template-columns:1fr; } .file-actions { justify-content:flex-end; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <div class="header-left">
+      <a href="index.html"><i class="fas fa-arrow-left"></i></a>
+      <h1>我的文件</h1>
+      <span id="fileCount"></span>
+    </div>
+    <div class="user-badge">
+      <i class="fas fa-user-circle"></i>
+      <span id="userName">-</span>
+      <a href="index.html">首页</a>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <div class="toolbar-left">
+      <button class="btn btn-primary" onclick="toggleUpload()"><i class="fas fa-cloud-arrow-up"></i> 上传文件</button>
+      <button class="btn btn-outline" onclick="refreshList()"><i class="fas fa-rotate"></i> 刷新</button>
+    </div>
+  </div>
+
+  <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+    <i class="fas fa-cloud-arrow-up"></i>
+    <h3>点击选择文件，或拖拽文件到此处</h3>
+    <p>支持所有文件类型，单文件最大 100MB（大文件自动分片上传）</p>
+    <div class="progress-wrap" id="progressWrap" style="display:none" onclick="event.stopPropagation()">
+      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+      <span class="progress-text" id="progressText">0%</span>
+    </div>
+    <input type="file" id="fileInput" style="display:none" onchange="uploadFile(this)">
+  </div>
+
+  <div class="file-list" id="fileList">
+    <div class="loading-item"><div class="shimmer" style="width:44px;height:44px;border-radius:12px;"></div><div><div class="shimmer" style="width:200px"></div><div class="shimmer shimmer-sm" style="margin-top:6px"></div></div></div>
+    <div class="loading-item"><div class="shimmer" style="width:44px;height:44px;border-radius:12px;"></div><div><div class="shimmer" style="width:180px"></div><div class="shimmer shimmer-sm" style="margin-top:6px"></div></div></div>
+  </div>
+
+  <div class="pagination" id="pagination"></div>
+</div>
+
+<!-- Share Modal -->
+<div class="modal-overlay" id="shareModal">
+  <div class="modal">
+    <h2><i class="fas fa-share-nodes" style="color:#7c3aed;margin-right:8px"></i> 分享文件</h2>
+    <p style="color:rgba(255,255,255,.4);font-size:14px;margin-bottom:20px" id="shareFileName"></p>
+    <div class="field">
+      <label>有效期</label>
+      <select id="shareExpire">
+        <option value="never">永久有效</option>
+        <option value="1h">1 小时</option>
+        <option value="24h">24 小时</option>
+        <option value="7d">7 天</option>
+        <option value="30d">30 天</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>提取码</label>
+      <select id="shareExtract" onchange="toggleCustomExtract()">
+        <option value="off">无提取码</option>
+        <option value="on">自动生成 6 位数字</option>
+        <option value="custom">自定义提取码</option>
+      </select>
+    </div>
+    <div class="field" id="customExtractField" style="display:none">
+      <input type="text" id="customExtractInput" placeholder="输入 4-6 位提取码" maxlength="6">
+    </div>
+    <div class="modal-btns">
+      <button class="btn btn-outline" onclick="closeShareModal()">取消</button>
+      <button class="btn btn-primary" id="shareConfirmBtn" onclick="confirmShare()">确认分享</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let token = localStorage.getItem('cloud_token');
+if (!token) location.href='login.html';
+let userName = localStorage.getItem('cloud_user') || '用户';
+document.getElementById('userName').textContent = userName;
+
+let curPage = 1, totalFiles = 0, pageSize = 10;
+let shareMd5 = '';
+
+function showToast(msg, type) {
+  let t = document.querySelector('.toast');
+  if (!t) { t=document.createElement('div'); t.className='toast'; document.body.appendChild(t); }
+  t.className='toast '+type+' show';
+  t.innerHTML='<i class="fas fa-'+(type==='success'?'check-circle':type==='error'?'exclamation-circle':'info-circle')+'"></i> '+msg;
+  clearTimeout(t._hide); t._hide=setTimeout(()=>t.classList.remove('show'),3000);
+}
+
+function getFileIcon(name) {
+  const ext = name.split('.').pop().toLowerCase();
+  if (['jpg','jpeg','png','gif','bmp','svg','webp'].includes(ext)) return {icon:'fa-image', cls:'image'};
+  if (['pdf'].includes(ext)) return {icon:'fa-file-pdf', cls:'pdf'};
+  if (['mp4','avi','mkv','mov','wmv','flv'].includes(ext)) return {icon:'fa-video', cls:'video'};
+  if (['zip','rar','7z','tar','gz'].includes(ext)) return {icon:'fa-file-zipper', cls:'zip'};
+  if (['cpp','h','py','js','ts','html','css','java','go','rs'].includes(ext)) return {icon:'fa-file-code', cls:'code'};
+  if (['doc','docx'].includes(ext)) return {icon:'fa-file-word', cls:'doc'};
+  if (['xls','xlsx'].includes(ext)) return {icon:'fa-file-excel', cls:'doc'};
+  return {icon:'fa-file', cls:'default'};
+}
+
+function formatSize(bytes) {
+  if (!bytes || bytes == 0) return '--';
+  const u = ['B','KB','MB','GB'];
+  let i = 0; let s = Number(bytes);
+  while (s >= 1024 && i < u.length-1) { s/=1024; i++; }
+  return s.toFixed(i>0?1:0)+' '+u[i];
+}
+
+async function loadFiles(page) {
+  curPage = page || 1;
+  const el = document.getElementById('fileList');
+  try {
+    const res = await fetch('/api/myfiles', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({token, cmd:'normal', page:curPage, size:pageSize})
+    });
+    const json = await res.json();
+    if (json.code === 0 && json.data) {
+      renderFiles(json.data);
+      // 从count接口获取总数
+      try {
+        const cntRes = await fetch('/api/myfiles', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({token, cmd:'count'})
+        });
+        const cntJson = await cntRes.json();
+        document.getElementById('fileCount').textContent = '('+(cntJson.count||0)+' 项)';
+      } catch(e) {
+        document.getElementById('fileCount').textContent = '('+(json.data.length||0)+' 项)';
+      }
+    } else {
+      el.innerHTML = '<div class="empty-state"><i class="fas fa-folder-open"></i><h3>暂无文件</h3><p>点击上方「上传文件」开始使用</p></div>';
+    }
+  } catch(e) {
+    el.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle" style="color:#ef4444"></i><h3>加载失败</h3><p>'+e.message+'</p></div>';
+  }
+}
+
+function renderFiles(files) {
+  const el = document.getElementById('fileList');
+  if (!files || files.length === 0) {
+    el.innerHTML = '<div class="empty-state"><i class="fas fa-folder-open"></i><h3>暂无文件</h3><p>点击上方「上传文件」开始使用</p></div>';
+    document.getElementById('pagination').innerHTML = '';
+    return;
+  }
+  el.innerHTML = files.map(f => {
+    const fi = getFileIcon(f.file_name || '');
+    return `<div class="file-item">
+      <div class="file-icon ${fi.cls}"><i class="fas ${fi.icon}"></i></div>
+      <div class="file-info">
+        <div class="name">${escHtml(f.file_name)}</div>
+        <div class="meta">
+          <span>${formatSize(f.file_size)}</span>
+          <span><i class="fas fa-download"></i> ${f.pv||0}</span>
+          <span>${f.create_time||''}</span>
+        </div>
+      </div>
+      <div class="file-actions">
+        ${f.file_url ? `<button class="btn btn-sm btn-outline" onclick="downloadFile('${escHtml(f.file_url)}','${escHtml(f.file_name)}')"><i class="fas fa-download"></i> 下载</button>` : ''}
+        ${f.share_status == 1
+          ? `<button class="btn btn-sm btn-outline" style="border-color:rgba(239,68,68,.3);color:#ef4444" onclick="unshareFile('${escHtml(f.file_md5)}')"><i class="fas fa-ban"></i> 取消分享</button>`
+          : `<button class="btn btn-sm btn-outline" onclick="openShareModal('${escHtml(f.file_md5)}','${escHtml(f.file_name)}')"><i class="fas fa-share-nodes"></i> 分享</button>`}
+        <button class="btn btn-sm btn-danger" onclick="deleteFile('${escHtml(f.file_md5)}')"><i class="fas fa-trash-can"></i> 删除</button>
+      </div>
+    </div>`;
+  }).join('');
+  renderPagination(files.length);
+}
+
+function renderPagination(count) {
+  const el = document.getElementById('pagination');
+  if (count < pageSize && curPage <= 1) { el.innerHTML = ''; return; }
+  el.innerHTML = `<button class="page-btn" onclick="loadFiles(1)" ${curPage<=1?'disabled':''}><i class="fas fa-angles-left"></i></button>
+    <button class="page-btn" onclick="loadFiles(${curPage-1})" ${curPage<=1?'disabled':''}><i class="fas fa-angle-left"></i></button>
+    <span style="color:rgba(255,255,255,.4);font-size:14px;padding:0 12px">第 ${curPage} 页</span>
+    <button class="page-btn" onclick="loadFiles(${curPage+1})"><i class="fas fa-angle-right"></i></button>`;
+}
+
+function escHtml(s) { if (!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+async function deleteFile(md5) {
+  if (!confirm('确定删除该文件吗？')) return;
+  try {
+    const res = await fetch('/api/dealfile?token='+encodeURIComponent(token)+'&file_md5='+encodeURIComponent(md5)+'&cmd=del');
+    const json = await res.json();
+    if (json.code === 0) { showToast('删除成功','success'); loadFiles(curPage); }
+    else { showToast(json.msg||'删除失败','error'); }
+  } catch(e) { showToast('网络错误','error'); }
+}
+
+async function unshareFile(md5) {
+  try {
+    const res = await fetch('/api/dealfile?token='+encodeURIComponent(token)+'&file_md5='+encodeURIComponent(md5)+'&cmd=unshare');
+    const json = await res.json();
+    if (json.code === 0) { showToast('已取消分享','success'); loadFiles(curPage); }
+    else { showToast(json.msg||'取消失败','error'); }
+  } catch(e) { showToast('网络错误','error'); }
+}
+
+let uploadVisible = false;
+function toggleUpload() {
+  uploadVisible = !uploadVisible;
+  document.getElementById('uploadZone').classList.toggle('show', uploadVisible);
+}
+
+function showProgress(pct, text) {
+  const wrap = document.getElementById('progressWrap');
+  const fill = document.getElementById('progressFill');
+  const txt = document.getElementById('progressText');
+  wrap.style.display = 'flex';
+  fill.style.width = Math.min(pct, 100) + '%';
+  txt.textContent = text || Math.round(pct) + '%';
+}
+
+function hideProgress() {
+  document.getElementById('progressWrap').style.display = 'none';
+}
+
+async function uploadFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  showToast('计算MD5...','info');
+  const md5 = await fileMD5(file);
+
+  // 大文件使用分片上传（超过95MB）
+  if (file.size > 95 * 1024 * 1024) {
+    await chunkedUpload(file, md5, input);
+    return;
+  }
+
+  showProgress(0, '0%');
+
+  try {
+    const formData = new FormData();
+    formData.append('token', token);
+    formData.append('file', file);
+    formData.append('file_name', file.name);
+    formData.append('file_md5', md5);
+
+    const result = await new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/upload');
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          const pct = (e.loaded / e.total) * 100;
+          showProgress(pct, Math.round(pct) + '%');
+        }
+      };
+      xhr.onload = () => {
+        try { resolve(JSON.parse(xhr.responseText)); }
+        catch(e) { reject(new Error('解析响应失败')); }
+      };
+      xhr.onerror = () => reject(new Error('网络错误'));
+      xhr.send(formData);
+    });
+
+    if (result.code === 0) {
+      showToast('上传成功','success');
+      input.value = '';
+      document.getElementById('uploadZone').classList.remove('show');
+      uploadVisible = false;
+      hideProgress();
+      loadFiles(curPage);
+    } else {
+      showToast(result.msg||'上传失败','error');
+    }
+  } catch(e) { showToast('上传失败: '+e.message,'error'); }
+}
+
+// 分片上传（每片5MB）
+async function chunkedUpload(file, md5, input) {
+  const SLICE_SIZE = 5 * 1024 * 1024;
+  const total = Math.ceil(file.size / SLICE_SIZE);
+
+  showProgress(0, '0%');
+
+  try {
+    for (let i = 0; i < total; i++) {
+      const start = i * SLICE_SIZE;
+      const end = Math.min(start + SLICE_SIZE, file.size);
+      const chunk = file.slice(start, end);
+
+      const formData = new FormData();
+      formData.append('token', token);
+      formData.append('filename', file.name);
+      formData.append('slice_index', i);
+      formData.append('slice_total', total);
+      formData.append('file_md5', md5);
+      formData.append('file', chunk, file.name + '.part' + i);
+
+      const res = await fetch('/api/sliceupload', { method:'POST', body: formData });
+      const json = await res.json();
+
+      if (json.code !== 0) {
+        throw new Error(json.msg || '分片' + i + '上传失败');
+      }
+
+      const pct = ((i + 1) / total) * 100;
+      showProgress(pct, '分片 ' + (i + 1) + '/' + total);
+    }
+
+    showToast('上传成功','success');
+    input.value = '';
+    document.getElementById('uploadZone').classList.remove('show');
+    uploadVisible = false;
+    hideProgress();
+    loadFiles(curPage);
+  } catch(e) {
+    showToast('上传失败: '+e.message,'error');
+  }
+}
+
+// File MD5 using CryptoJS
+function fileMD5(file) {
+  return new Promise(function(resolve) {
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var wordArray = CryptoJS.lib.WordArray.create(e.target.result);
+      var md5 = CryptoJS.MD5(wordArray).toString();
+      resolve(md5);
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+// Download file via blob (works on mobile)
+async function downloadFile(url, filename) {
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('下载失败: HTTP '+resp.status);
+    const blob = await resp.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename || 'download';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  } catch(e) {
+    showToast(e.message||'下载失败','error');
+  }
+}
+
+// Share
+function openShareModal(md5, fname) {
+  shareMd5 = md5;
+  document.getElementById('shareFileName').textContent = '文件: '+fname;
+  document.getElementById('shareModal').classList.add('show');
+}
+
+function closeShareModal() {
+  document.getElementById('shareModal').classList.remove('show');
+  shareMd5 = '';
+}
+
+function toggleCustomExtract() {
+  document.getElementById('customExtractField').style.display =
+    document.getElementById('shareExtract').value === 'custom' ? 'block' : 'none';
+}
+
+async function confirmShare() {
+  const expire = document.getElementById('shareExpire').value;
+  let extract = document.getElementById('shareExtract').value;
+  if (extract === 'custom') {
+    extract = document.getElementById('customExtractInput').value.trim();
+    if (extract.length < 4) { showToast('提取码至少4位','error'); return; }
+  }
+  const btn = document.getElementById('shareConfirmBtn');
+  btn.disabled = true;
+  try {
+    let url = '/api/dealfile?token='+encodeURIComponent(token)+'&file_md5='+encodeURIComponent(shareMd5)+'&cmd=share&expire='+expire+'&extract='+encodeURIComponent(extract);
+    const res = await fetch(url);
+    const json = await res.json();
+    if (json.code === 0) {
+      showToast('分享成功！链接已生成','success');
+      closeShareModal();
+    } else {
+      showToast(json.msg||'分享失败','error');
+    }
+  } catch(e) { showToast('网络错误','error'); }
+  btn.disabled = false;
+}
+
+// Drag & drop
+const zone = document.getElementById('uploadZone');
+zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+zone.addEventListener('drop', e => {
+  e.preventDefault();
+  zone.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) {
+    const input = document.getElementById('fileInput');
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    input.files = dt.files;
+    uploadFile(input);
+  }
+});
+
+// Init
+loadFiles(1);
+</script>
+</body>
+</html>
