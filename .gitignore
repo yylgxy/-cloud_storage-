@@ -35,7 +35,10 @@ test_update
 *.swn
 .claude/
 
-# Config files (local)
+# Runtime generated data
+common/file_info.json
+
+# Config files (local) — .example 版本会被追踪，本地自己改的会被忽略
 fastcgi.conf
 fastcgi_params
 nginx.conf

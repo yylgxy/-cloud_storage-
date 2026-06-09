@@ -1,0 +1,65 @@
+user  nginx;
+worker_processes  auto;
+
+events {
+    use epoll;
+    worker_connections  1024;
+}
+
+http {
+    include       mime.types;
+    default_type  application/octet-stream;
+    sendfile        on;
+    keepalive_timeout  65;
+    client_max_body_size 100M;
+
+    server {
+        listen  80;
+        server_name localhost;
+
+        # FastDFS
+        location ~ /group([0-9])/M00 {
+            ngx_fastdfs_module;
+        }
+
+        location / {
+            root html;
+            index index.html;
+        }
+
+        # ---------- 上传配置（去掉不支持的指令）----------
+        location /api/upload {
+            fastcgi_pass 127.0.0.1:8005;
+            include fastcgi_params;
+            fastcgi_param  CONTENT_LENGTH  $content_length;
+        }
+        location /api/sharefiles {
+            fastcgi_pass 127.0.0.1:8009;
+            include fastcgi_params;
+        }
+        location /api/dealfile {
+            fastcgi_pass 127.0.0.1:8012;
+            include fastcgi_params;
+        }
+        location /api/dealsharefile {
+            fastcgi_pass 127.0.0.1:8010;
+            include fastcgi_params;
+        }
+        location /api/sliceupload {
+            fastcgi_pass 127.0.0.1:8011;
+            include fastcgi_params;
+        }
+
+        # 其他接口
+        location /api/register { fastcgi_pass 127.0.0.1:8006; include fastcgi_params; }
+        location /api/login    { fastcgi_pass 127.0.0.1:8007; include fastcgi_params; }
+        location /api/md5      { fastcgi_pass 127.0.0.1:8008; include fastcgi_params; }
+        location /api/myfiles  { fastcgi_pass 127.0.0.1:8009; include fastcgi_params; }
+
+        # 分享链接访问（无前缀 /share）
+        location /share {
+            fastcgi_pass 127.0.0.1:8013;
+            include fastcgi_params;
+        }
+    }
+}
