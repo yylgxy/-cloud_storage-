@@ -4,6 +4,12 @@
 
 BIN=/home/yyl/cloud_storage/common
 
+# 数据库密码从环境变量读取（不要在脚本里写死）
+if [ -z "$DB_PASSWORD" ]; then
+    echo "⚠️  请先设置 DB_PASSWORD 环境变量：export DB_PASSWORD='你的密码'"
+    exit 1
+fi
+
 echo "=== 启动 FastDFS ==="
 sudo fdfs_trackerd /etc/fdfs/tracker.conf
 sudo fdfs_storaged /etc/fdfs/storage.conf
