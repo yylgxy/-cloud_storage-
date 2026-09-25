@@ -1,8 +1,13 @@
 #!/bin/bash
 # 快速启动云存储所有服务（在重启后执行）
 # 用法: bash ~/start_cloud.sh
+#
+# 可选环境变量：
+#   DB_PASSWORD        MySQL 密码（必填）
+#   CLOUD_STORAGE_BIN  FastCGI 可执行文件所在目录，默认 $HOME/cloud_storage/common
+#   SERVER_IP          仅用于打印访问地址，不影响服务监听
 
-BIN=/home/yyl/cloud_storage/common
+BIN="${CLOUD_STORAGE_BIN:-$HOME/cloud_storage/common}"
 
 # 数据库密码从环境变量读取（不要在脚本里写死）
 if [ -z "$DB_PASSWORD" ]; then
@@ -33,5 +38,5 @@ echo "=== 启动 Cloudflare Tunnel（外网访问）==="
 systemctl --user start cloudflared-tunnel
 
 echo "=== 完成 ==="
-echo "内网地址: http://192.168.150.101"
+echo "内网地址: http://${SERVER_IP:-<本机IP>}"
 echo "隧道地址: cat /tmp/cloudflared-tunnel.log | grep 'trycloudflare.com'"

@@ -50,11 +50,14 @@ http {
             include fastcgi_params;
         }
 
-        # 其他接口
+        # ---------- 其他接口（端口分配与 common/start_cloud.sh 保持一致）----------
+        # 8005 ApiUpload       8006 ApiRegister      8007 ApiLogin         8008 ApiMd5
+        # 8009 ApiSharefiles   8010 ApiDealsharefile 8011 ApiSliceUpload
+        # 8012 ApiDealfile     8013 ApiShareAccess   8014 ApiMyfiles
         location /api/register { fastcgi_pass 127.0.0.1:8006; include fastcgi_params; }
         location /api/login    { fastcgi_pass 127.0.0.1:8007; include fastcgi_params; }
         location /api/md5      { fastcgi_pass 127.0.0.1:8008; include fastcgi_params; }
-        location /api/myfiles  { fastcgi_pass 127.0.0.1:8009; include fastcgi_params; }
+        location /api/myfiles  { fastcgi_pass 127.0.0.1:8014; include fastcgi_params; }
 
         # 分享链接访问（无前缀 /share）
         location /share {

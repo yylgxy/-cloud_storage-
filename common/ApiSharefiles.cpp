@@ -4,9 +4,18 @@
 #include "cjson_utils.h"
 #include <cstdio>
 #include <cstring>
+#include <cstdlib>
 #include <string>
+#include <vector>
+#include <map>
 
 using namespace std;
+
+// 共享文件热度排行榜的 Redis ZSET 键名。
+// member = share_id，score = 该分享的下载量（pv）。
+// 选 ZSET 而不是 List 的原因：ZSET 天然按 score 有序，ZREVRANGE 取 TopN 的复杂度
+// 是 O(log N + M)，不需要把整张表捞出来再排序。
+static const char* RANK_KEY = "rank:share:hot";
 
 int main() {
     MySQLUtils* db = MySQLUtils::getInstance();
@@ -18,7 +27,7 @@ int main() {
     redis->connect();
 
     while (FCGI_Accept() >= 0) {
-        char resp[8192] = {0};
+        string resp;
         char token[128] = {0};
         char cmd[32] = {0};
         int page = 1, size = 10, top = 10;
@@ -43,9 +52,9 @@ int main() {
                 cJSON* err = cJSON_CreateObject();
                 cJSON_AddNumberToObject(err, "code", 1);
                 cJSON_AddStringToObject(err, "msg", "缺少请求体");
-                snprintf(resp, sizeof(resp), "%s", json->toString(err, false).c_str());
+                resp = json->toString(err, false);
                 json->free(err);
-                FCGI_printf("Content-Type: application/json\r\n\r\n%s", resp);
+                FCGI_printf("Content-Type: application/json\r\n\r\n%s", resp.c_str());
                 continue;
             }
 
@@ -58,8 +67,8 @@ int main() {
             delete[] req_body;
 
             if (!root) {
-                snprintf(resp, sizeof(resp), "{\"code\":1,\"msg\":\"JSON格式错误\"}");
-                FCGI_printf("Content-Type: application/json\r\n\r\n%s", resp);
+                resp = "{\"code\":1,\"msg\":\"JSON格式错误\"}";
+                FCGI_printf("Content-Type: application/json\r\n\r\n%s", resp.c_str());
                 continue;
             }
 
@@ -80,9 +89,9 @@ int main() {
             cJSON* err = cJSON_CreateObject();
             cJSON_AddNumberToObject(err, "code", 1);
             cJSON_AddStringToObject(err, "msg", "缺少必要参数");
-            snprintf(resp, sizeof(resp), "%s", json->toString(err, false).c_str());
+            resp = json->toString(err, false);
             json->free(err);
-            FCGI_printf("Content-Type: application/json\r\n\r\n%s", resp);
+            FCGI_printf("Content-Type: application/json\r\n\r\n%s", resp.c_str());
             if (root) cJSON_Delete(root);
             continue;
         }
@@ -98,11 +107,11 @@ int main() {
             cJSON* err = cJSON_CreateObject();
             cJSON_AddNumberToObject(err, "code", 4);
             cJSON_AddStringToObject(err, "msg", "Token无效或已过期");
-            snprintf(resp, sizeof(resp), "%s", json->toString(err, false).c_str());
+            resp = json->toString(err, false);
             json->free(err);
             redis->freeReply(reply);
             if (root) cJSON_Delete(root);
-            FCGI_printf("Content-Type: application/json\r\n\r\n%s", resp);
+            FCGI_printf("Content-Type: application/json\r\n\r\n%s", resp.c_str());
             continue;
         }
 
@@ -127,10 +136,10 @@ int main() {
             cJSON* err = cJSON_CreateObject();
             cJSON_AddNumberToObject(err, "code", 1);
             cJSON_AddStringToObject(err, "msg", "用户不存在");
-            snprintf(resp, sizeof(resp), "%s", json->toString(err, false).c_str());
+            resp = json->toString(err, false);
             json->free(err);
             if (root) cJSON_Delete(root);
-            FCGI_printf("Content-Type: application/json\r\n\r\n%s", resp);
+            FCGI_printf("Content-Type: application/json\r\n\r\n%s", resp.c_str());
             continue;
         }
 
@@ -196,56 +205,127 @@ int main() {
             cJSON_AddNumberToObject(result, "code", 0);
             cJSON_AddItemToObject(result, "data", data);
         }
-        // 处理rank命令 - 获取下载排行榜（按下载量倒序）
+        // ====================== rank：热度排行榜 ======================
+        // 排序工作在 Redis ZSET 里完成，MySQL 只负责按 share_id 补齐元数据。
         else if (strcmp(cmd, "rank") == 0) {
+            if (top <= 0)   top = 10;
+            if (top > 100)  top = 100;   // 防止 top 参数被用来拖库
+
             cJSON* data = cJSON_CreateArray();
 
-            if (db->connect()) {
-                char sql[2048];
-                snprintf(sql, sizeof(sql),
+            // ---------- 1. ZSET 为空时从 MySQL 一次性回填 ----------
+            // Redis 重启、或首次部署该功能时 ZSET 是空的。这里做自愈回填，
+            // 否则排行榜会凭空变成空列表，看起来像是功能坏了。
+            redisReply* zcard = redis->command(string("ZCARD ") + RANK_KEY);
+            long long card = (zcard && zcard->type == REDIS_REPLY_INTEGER) ? zcard->integer : 0;
+            redis->freeReply(zcard);
+
+            if (card == 0 && db->connect()) {
+                MYSQL_RES* backfill = db->query("SELECT share_id, pv FROM share_file_list");
+                if (backfill) {
+                    MYSQL_ROW r;
+                    while ((r = mysql_fetch_row(backfill)) != nullptr) {
+                        if (r[0] == nullptr) continue;
+                        string zcmd = "ZADD ";
+                        zcmd += RANK_KEY;
+                        zcmd += " ";
+                        zcmd += (r[1] != nullptr ? r[1] : "0");
+                        zcmd += " ";
+                        zcmd += r[0];
+                        redisReply* zr = redis->command(zcmd);
+                        redis->freeReply(zr);
+                    }
+                    db->freeResult(backfill);
+                }
+                db->disconnect();
+            }
+
+            // ---------- 2. 从 ZSET 取 TopN（O(log N + M)）----------
+            char zcmd[256];
+            snprintf(zcmd, sizeof(zcmd), "ZREVRANGE %s 0 %d WITHSCORES", RANK_KEY, top - 1);
+            redisReply* zres = redis->command(zcmd);
+
+            vector<string>    ids;
+            vector<long long> scores;
+            if (zres && zres->type == REDIS_REPLY_ARRAY) {
+                for (size_t i = 0; i + 1 < zres->elements; i += 2) {
+                    ids.push_back(zres->element[i]->str);
+                    scores.push_back(atoll(zres->element[i + 1]->str));
+                }
+            }
+            redis->freeReply(zres);
+
+            // ---------- 3. 一次 IN 查询补齐详情 ----------
+            // 不用"循环里逐个查"（N+1），而是一次把所有 share_id 捞回来，
+            // 再按 ZSET 给出的名次在内存里重排。
+            if (!ids.empty() && db->connect()) {
+                string in_list;
+                for (size_t i = 0; i < ids.size(); ++i) {
+                    if (i > 0) in_list += ",";
+                    in_list += "'" + ids[i] + "'";     // share_id 由服务端生成，形如 share_1717_0042
+                }
+
+                map<string, size_t> rank_order;
+                for (size_t i = 0; i < ids.size(); ++i) rank_order[ids[i]] = i;
+
+                char rank_sql[8192];
+                snprintf(rank_sql, sizeof(rank_sql),
                     "SELECT s.share_id, s.user_name, s.file_md5, s.file_name, "
-                    "IFNULL(s.extract_code, ''), "
-                    "s.pv, s.create_time, "
-                    "IFNULL(f.file_size, 0), IFNULL(f.file_url, '') "
+                    "IFNULL(s.extract_code, ''), IFNULL(s.expire_time, ''), "
+                    "s.create_time, IFNULL(f.file_size, 0), IFNULL(f.file_url, '') "
                     "FROM share_file_list s "
                     "LEFT JOIN file_info f ON s.file_md5 = f.file_md5 "
-                    "ORDER BY s.pv DESC "
-                    "LIMIT %d",
-                    top);
-                MYSQL_RES* res = db->query(sql);
-                if (res) {
+                    "WHERE s.share_id IN (%s)",
+                    in_list.c_str());
+
+                vector<cJSON*> slots(ids.size(), nullptr);
+                MYSQL_RES* rres = db->query(rank_sql);
+                if (rres) {
                     MYSQL_ROW row;
-                    while ((row = mysql_fetch_row(res)) != nullptr) {
+                    while ((row = mysql_fetch_row(rres)) != nullptr) {
+                        map<string, size_t>::iterator it = rank_order.find(row[0]);
+                        if (it == rank_order.end()) continue;
+                        size_t idx = it->second;
+
                         cJSON* file = cJSON_CreateObject();
                         cJSON_AddStringToObject(file, "share_id", row[0]);
                         cJSON_AddStringToObject(file, "user_name", row[1]);
                         cJSON_AddStringToObject(file, "file_md5", row[2]);
                         cJSON_AddStringToObject(file, "file_name", row[3]);
                         cJSON_AddStringToObject(file, "extract_code", row[4]);
-                        cJSON_AddNumberToObject(file, "pv", atoi(row[5]));
+                        cJSON_AddStringToObject(file, "expire_time", row[5]);
                         cJSON_AddStringToObject(file, "create_time", row[6]);
                         cJSON_AddNumberToObject(file, "file_size", atoll(row[7]));
                         cJSON_AddStringToObject(file, "file_url", row[8]);
-                        cJSON_AddItemToArray(data, file);
+                        // 下载量直接取 ZSET 的 score，比 MySQL 里的 pv 更新更及时
+                        cJSON_AddNumberToObject(file, "pv", (int)scores[idx]);
+                        slots[idx] = file;
                     }
-                    db->freeResult(res);
+                    db->freeResult(rres);
                 }
                 db->disconnect();
+
+                for (size_t i = 0; i < slots.size(); ++i) {
+                    if (slots[i] != nullptr) {
+                        cJSON_AddItemToArray(data, slots[i]);
+                    }
+                }
             }
 
             cJSON_AddNumberToObject(result, "code", 0);
             cJSON_AddItemToObject(result, "data", data);
+            cJSON_AddStringToObject(result, "order_by", "redis-zset:rank:share:hot");
         }
         else {
             cJSON_AddNumberToObject(result, "code", 1);
             cJSON_AddStringToObject(result, "msg", "无效的命令");
         }
 
-        snprintf(resp, sizeof(resp), "%s", json->toString(result, false).c_str());
+        resp = json->toString(result, false);
         json->free(result);
         if (root) cJSON_Delete(root);
 
-        FCGI_printf("Content-Type: application/json\r\n\r\n%s", resp);
+        FCGI_printf("Content-Type: application/json\r\n\r\n%s", resp.c_str());
     }
 
     RedisUtils::destroyInstance();

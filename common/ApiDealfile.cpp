@@ -6,10 +6,14 @@
 #include <cstdio>
 #include <cstring>
 #include <string>
+#include <vector>
 #include <time.h>
 #include <stdlib.h>
 
 using namespace std;
+
+// 共享文件热度排行榜的 Redis ZSET 键名，与 ApiSharefiles 的 rank 命令共用
+static const char* RANK_KEY = "rank:share:hot";
 
 int main() {
     MySQLUtils* db = MySQLUtils::getInstance();
@@ -148,12 +152,37 @@ int main() {
                     }
                     // ====================== 取消分享 ======================
                     else if (strcmp(cmd, "unshare") == 0) {
+                        // 先取出该用户该文件对应的所有 share_id，
+                        // 分享记录删除后就查不到了，必须提前拿
+                        vector<string> share_ids;
+                        snprintf(sql, sizeof(sql),
+                            "SELECT share_id FROM share_file_list WHERE user_name='%s' AND file_md5='%s'",
+                            user_name, file_md5);
+                        res = db->query(sql);
+                        if (res != nullptr) {
+                            MYSQL_ROW sid_row;
+                            while ((sid_row = mysql_fetch_row(res)) != nullptr) {
+                                if (sid_row[0] != nullptr) share_ids.push_back(sid_row[0]);
+                            }
+                            db->freeResult(res);
+                        }
+
                         snprintf(sql, sizeof(sql), "UPDATE user_file_list SET share_status=0 WHERE user_name='%s' AND file_md5='%s'", user_name, file_md5);
                         db->update(sql);
                         snprintf(sql, sizeof(sql), "DELETE FROM share_file_list WHERE user_name='%s' AND file_md5='%s'", user_name, file_md5);
                         int affected = db->update(sql);
 
                         if (affected > 0) {
+                            // 同步把已取消的分享从热度排行榜摘掉
+                            for (size_t si = 0; si < share_ids.size(); ++si) {
+                                string zcmd = "ZREM ";
+                                zcmd += RANK_KEY;
+                                zcmd += " ";
+                                zcmd += share_ids[si];
+                                redisReply* zr = redis->command(zcmd);
+                                redis->freeReply(zr);
+                            }
+
                             json->addInt(root, "code", 0);
                             json->addString(root, "msg", "取消分享成功");
                         } else {
@@ -250,6 +279,15 @@ int main() {
                         int insert_ok = db->update(insert_sql);
 
                         if (insert_ok > 0) {
+                            // 新分享立即入榜（score 从 0 开始），
+                            // 这样它不必等到第一次被下载就能出现在排行榜里
+                            string zcmd = "ZADD ";
+                            zcmd += RANK_KEY;
+                            zcmd += " 0 ";
+                            zcmd += share_id;
+                            redisReply* zr = redis->command(zcmd);
+                            redis->freeReply(zr);
+
                             json->addInt(root, "code", 0);
                             json->addString(root, "msg", "文件分享成功");
                             json->addString(root, "share_id", share_id);

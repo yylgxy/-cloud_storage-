@@ -1,11 +1,14 @@
 #include "fastdfs_utils.h"
+#include "lb_tracker.h"
 #include <cstring>
+#include <cstdlib>
 #include <cerrno>
 #include <iostream>
 
 using namespace std;
 
 FastdfsUtils* FastdfsUtils::instance = nullptr;
+bool FastdfsUtils::lb_enabled = false;
 
 FastdfsUtils::FastdfsUtils() : initialized(false) {}
 
@@ -22,6 +25,14 @@ FastdfsUtils* FastdfsUtils::getInstance() {
     return instance;
 }
 
+void FastdfsUtils::setLoadBalanceEnabled(bool enabled) {
+    lb_enabled = enabled;
+}
+
+bool FastdfsUtils::isLoadBalanceEnabled() {
+    return lb_enabled;
+}
+
 bool FastdfsUtils::init(const char* config_file) {
     if (initialized) return true;
 
@@ -32,6 +43,16 @@ bool FastdfsUtils::init(const char* config_file) {
     // 初始化时只加载配置，不保存任何连接
     g_log_context.log_level = 0;
     initialized = true;
+
+    // 负载均衡：默认关闭，可用环境变量 LB_ENABLE=1 打开，
+    // 节点画像文件默认取 /etc/fdfs/lb_nodes.conf，可用 LB_NODE_PROFILE 覆盖。
+    const char* lb_env = getenv("LB_ENABLE");
+    setLoadBalanceEnabled(lb_env != nullptr && strcmp(lb_env, "0") != 0);
+
+    const char* profile = getenv("LB_NODE_PROFILE");
+    if (profile == nullptr) profile = "/etc/fdfs/lb_nodes.conf";
+    LbTracker::getInstance()->loadNodeProfile(profile);
+
     return true;
 }
 
@@ -50,15 +71,30 @@ string FastdfsUtils::uploadFile(const string& local_file) {
     char file_id[256] = {0};
     int store_path = 0;
 
-    // 查询存储节点
-    if (tracker_query_storage_store_without_group(tracker, &storage, group_name, &store_path) != 0) {
-        cerr << "tracker_query_storage_store_without_group failed" << endl;
+    // ------------------------------------------------------------------
+    // 选盘：由 LbTracker 统一决定。
+    //   开关关闭 → 等价于原来的 tracker_query_storage_store_without_group
+    //   开关打开 → 客户端先按"水位过滤 + 加权评分"选组，再让 tracker 在组内选节点
+    // ------------------------------------------------------------------
+    LbTracker* lb_tracker = LbTracker::getInstance();
+    LbStrategy strategy = isLoadBalanceEnabled() ? LB_WEIGHTED_SCORE : LB_MAX_FREE_SPACE;
+
+    int pick = lb_tracker->selectStorage(tracker, &storage, group_name, &store_path, strategy);
+    if (pick < 0) {
+        cerr << "selectStorage failed" << endl;
         tracker_close_connection_ex(tracker, false);
         return "";
     }
 
-    // 调试输出：看看 store_path 和 group_name 是否正确
-    cout << "DEBUG: group_name=" << group_name << ", store_path=" << store_path << endl;
+    // 调试输出：看看选中的组与路径
+    cout << "DEBUG: group_name=" << group_name
+         << ", store_path=" << store_path
+         << ", strategy=" << (strategy == LB_WEIGHTED_SCORE ? "weighted" : "native") << endl;
+
+    // 在途任务计数：供下一次决策的空闲度维度使用
+    LbAlgorithm* lb = LbAlgorithm::getInstance();
+    string inflight_key(group_name);
+    lb->onTaskBegin(inflight_key);
 
     // ✅ 使用不带 cmd 参数的上传函数，避免 cmd 值错乱
     int ret = storage_upload_by_filename1(
@@ -72,6 +108,8 @@ string FastdfsUtils::uploadFile(const string& local_file) {
         group_name,
         file_id
     );
+
+    lb->onTaskEnd(inflight_key);
 
     // 关闭连接
     tracker_close_connection_ex(&storage, false);

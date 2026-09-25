@@ -336,6 +336,20 @@ async function uploadFile(input) {
   showToast('计算MD5...','info');
   const md5 = await fileMD5(file);
 
+  // 秒传前置检查：拿着文件指纹先问服务端"这个文件是不是已经有了"。
+  // 命中则服务端只补一条用户文件引用，一个字节的文件内容都不用上传。
+  showToast('检查是否可秒传...','info');
+  const instant = await checkInstantUpload(md5, file.name);
+  if (instant) {
+    showToast('秒传成功：服务端已存在相同文件','success');
+    input.value = '';
+    document.getElementById('uploadZone').classList.remove('show');
+    uploadVisible = false;
+    hideProgress();
+    loadFiles(curPage);
+    return;
+  }
+
   // 大文件使用分片上传（超过95MB）
   if (file.size > 95 * 1024 * 1024) {
     await chunkedUpload(file, md5, input);
@@ -435,6 +449,22 @@ function fileMD5(file) {
     };
     reader.readAsArrayBuffer(file);
   });
+}
+
+// 秒传检查：以文件 MD5 为指纹询问服务端是否已存在同一份物理文件。
+// 命中返回 true（code=0），未命中返回 false（code=6 需要上传）。
+// 检查本身失败时返回 false，降级为普通上传，绝不让秒传成为上传的阻塞点。
+async function checkInstantUpload(md5, filename) {
+  try {
+    const url = '/api/md5?token=' + encodeURIComponent(token)
+              + '&file_md5=' + encodeURIComponent(md5)
+              + '&filename=' + encodeURIComponent(filename);
+    const res = await fetch(url);
+    const json = await res.json();
+    return json.code === 0;
+  } catch(e) {
+    return false;
+  }
 }
 
 // Download file via blob (works on mobile)

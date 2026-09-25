@@ -10,6 +10,10 @@
 
 using namespace std;
 
+// 共享文件热度排行榜的 Redis ZSET 键名，与 ApiSharefiles 的 rank 命令共用。
+// member = share_id，score = 下载量；写入端只做 ZINCRBY / ZREM，读取端做 ZREVRANGE。
+static const char* RANK_KEY = "rank:share:hot";
+
 int main() {
     MySQLUtils* db = MySQLUtils::getInstance();
     RedisUtils* redis = RedisUtils::getInstance();
@@ -136,6 +140,14 @@ int main() {
                             md5);
                         db->update(sql);
 
+                        // 同步从热度排行榜摘除，否则已取消的分享还会挂在榜上
+                        string zcmd = "ZREM ";
+                        zcmd += RANK_KEY;
+                        zcmd += " ";
+                        zcmd += share_id;
+                        redisReply* zr = redis->command(zcmd);
+                        redis->freeReply(zr);
+
                         json->addInt(root, "code", 0);
                         json->addString(root, "msg", "取消分享成功");
                     } else {
@@ -237,6 +249,43 @@ int main() {
             int affected = db->update(sql);
 
             if (affected > 0) {
+                // 同步维护 Redis 热度排行榜。
+                // ZINCRBY 是单命令原子自增，多个用户同时下载同一个分享时
+                // 不会像 UPDATE ... SET pv=pv+1 那样产生行锁排队。
+                string zcmd = "ZINCRBY ";
+                zcmd += RANK_KEY;
+                zcmd += " 1 ";
+                zcmd += share_id;
+
+                redisReply* zr = redis->command(zcmd);
+                double new_score = 0.0;
+                if (zr != nullptr && zr->type == REDIS_REPLY_STRING) {
+                    new_score = atof(zr->str);
+                } else if (zr != nullptr && zr->type == REDIS_REPLY_INTEGER) {
+                    new_score = (double)zr->integer;
+                }
+                redis->freeReply(zr);
+
+                // 自愈：分数等于 1 说明这个 member 是本次请求刚创建的，即 Redis 里原本没有它
+                // （Redis 重启丢数据，或该分享创建于排行榜功能上线之前）。
+                // 此时用 MySQL 的真实 pv 覆盖，避免榜上分数从 1 开始失真。
+                if (new_score <= 1.0) {
+                    char pv_sql[512];
+                    snprintf(pv_sql, sizeof(pv_sql),
+                        "SELECT pv FROM share_file_list WHERE share_id='%s' LIMIT 1",
+                        share_id);
+                    MYSQL_RES* pv_res = db->query(pv_sql);
+                    if (pv_res != nullptr && mysql_num_rows(pv_res) > 0) {
+                        MYSQL_ROW pv_row = mysql_fetch_row(pv_res);
+                        char zadd[256];
+                        snprintf(zadd, sizeof(zadd), "ZADD %s %s %s",
+                                 RANK_KEY, (pv_row[0] != nullptr ? pv_row[0] : "0"), share_id);
+                        redisReply* zr2 = redis->command(zadd);
+                        redis->freeReply(zr2);
+                    }
+                    db->freeResult(pv_res);
+                }
+
                 json->addInt(root, "code", 0);
                 json->addString(root, "msg", "下载量更新成功");
             } else {

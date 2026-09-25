@@ -20,7 +20,9 @@
 #define REDIS_HOST "127.0.0.1"
 #define REDIS_PORT 6379
 #define REDIS_PASS ""
-#define CENTOS_IP "192.168.150.101"
+// 说明：原先这里硬编码了本机内网 IP（CENTOS_IP），但全仓库并无引用，
+// 属于遗留常量且会把内网拓扑带进公开仓库，故移除。
+// 如需在响应里回显服务地址，请通过环境变量 SERVER_BASE_URL 注入。
 
 // ---------- 解析 multipart/form-data ----------
 std::map<std::string, std::string> parse_multipart() {
