@@ -12,7 +12,7 @@
 
 | 功能 | 说明 |
 |------|------|
-| ✅ **用户系统** | 注册、登录（MD5 加密）、Token 鉴权 |
+| ✅ **用户系统** | 注册、登录（密码 MD5 哈希）、Token 鉴权 |
 | ⚡ **文件秒传** | 以文件 MD5 为指纹，命中已有文件时零字节上传 |
 | 📤 **文件上传** | 单文件上传；大于 95MB 自动切分片，支持断点续传 |
 | 📥 **文件下载** | 通过 FastDFS 直连下载，`sendfile` 零拷贝 |
@@ -144,7 +144,7 @@ g++ -O2 -std=c++11 lb_benchmark.cpp lb_algorithm.cpp -o lb_benchmark
 | `<token>` | String | 会话，值为 user_id | 登录时设定 |
 | `md5:<file_md5>` | String | 秒传指纹缓存，值为 FastDFS file_id | 3600s |
 | `lock:md5:<file_md5>` | String | 秒传并发控制锁（`SETNX` + `EXPIRE`） | 5s |
-| `slice:<file_md5>` | Set | 分片上传进度，`SADD` 记录已到达的分片序号 | — |
+| `upload:<file_md5>:slices` | Set | 分片上传进度，`SADD` 记录已到达的分片序号 | — |
 | `rank:share:hot` | **ZSet** | 分享文件下载热度排行榜，member=share_id，score=pv | 持久 |
 
 **排行榜为什么用 ZSet**：`ZREVRANGE key 0 N-1 WITHSCORES` 取 TopN 的复杂度是
@@ -166,7 +166,7 @@ g++ -O2 -std=c++11 lb_benchmark.cpp lb_algorithm.cpp -o lb_benchmark
 | 变量 | 必填 | 说明 |
 |------|------|------|
 | `DB_PASSWORD` | ✅ | MySQL 密码，代码不硬编码任何口令 |
-| `LB_ENABLE` | — | 设为 `1` 开启改进的存储负载均衡，缺省或 `0` 走 FastDFS 原生选盘 |
+| `LB_ENABLE` | — | 默认开启改进的存储负载均衡；设为 `0` 可回退到 FastDFS 原生选盘 |
 | `LB_NODE_PROFILE` | — | 节点画像配置路径，默认 `/etc/fdfs/lb_nodes.conf` |
 | `SERVER_IP` | — | 仅用于启动脚本打印访问地址 |
 
@@ -177,14 +177,21 @@ g++ -O2 -std=c++11 lb_benchmark.cpp lb_algorithm.cpp -o lb_benchmark
 ## 🚀 快速启动
 
 ```bash
-# 1. 启动 FastDFS
+# 0. 初始化数据库（建表，只需执行一次）
+mysql -u root -p < schema.sql
+
+# 1. 编译：生成 common/ 下的 10 个 FastCGI 可执行文件
+#    （依赖库路径若与默认不同，改 Makefile 顶部的 LIBS 变量）
+make
+
+# 2. 启动 FastDFS
 sudo fdfs_trackerd /etc/fdfs/tracker.conf
 sudo fdfs_storaged /etc/fdfs/storage.conf
 
-# 2. 启动 Nginx
+# 3. 启动 Nginx
 sudo /usr/local/nginx/sbin/nginx
 
-# 3. 启动 FastCGI 服务（10 个进程各监听一个端口）
+# 4. 启动 FastCGI 服务（10 个进程各监听一个端口）
 spawn-fcgi -a 127.0.0.1 -p 8005 -f ./common/ApiUpload
 spawn-fcgi -a 127.0.0.1 -p 8006 -f ./common/ApiRegister
 spawn-fcgi -a 127.0.0.1 -p 8007 -f ./common/ApiLogin
@@ -209,6 +216,8 @@ bash common/start_cloud.sh
 ```
 cloud_storage/
 ├── .env.example                 # 环境变量模板
+├── Makefile                     # 一键构建：编译 common/ 下全部 FastCGI 可执行文件
+├── schema.sql                   # 数据库建表脚本（5 张表）
 ├── README.md
 ├── docs/
 │   ├── raw_benchmark_normal.txt    # 负载均衡基准测试原始输出（常规负载）
@@ -254,7 +263,7 @@ cloud_storage/
 | `/api/dealfile` | GET | 文件删除 / 分享 / 取消分享 |
 | `/api/sharefiles` | GET/POST | 分享列表（`cmd=list`）、计数（`cmd=count`）、排行榜（`cmd=rank&top=N`） |
 | `/api/dealsharefile` | GET | 转存（`cmd=save`）、取消（`cmd=cancel`）、下载量自增（`cmd=pv`） |
-| `/api/share` | GET | 通过分享链接访问文件（校验提取码与有效期） |
+| `/share` | GET | 通过分享链接访问文件（校验提取码与有效期）。注意：该路由**无 `/api` 前缀**，与其余接口不同 |
 
 ---
 

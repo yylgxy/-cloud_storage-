@@ -8,7 +8,9 @@
 using namespace std;
 
 FastdfsUtils* FastdfsUtils::instance = nullptr;
-bool FastdfsUtils::lb_enabled = false;
+// 默认开启：改进算法已实现并通过基准测试（见 docs/ 与 README），
+// 缺省即接管组级选盘；需要回退原生逻辑时设 LB_ENABLE=0。
+bool FastdfsUtils::lb_enabled = true;
 
 FastdfsUtils::FastdfsUtils() : initialized(false) {}
 
@@ -44,10 +46,13 @@ bool FastdfsUtils::init(const char* config_file) {
     g_log_context.log_level = 0;
     initialized = true;
 
-    // 负载均衡：默认关闭，可用环境变量 LB_ENABLE=1 打开，
-    // 节点画像文件默认取 /etc/fdfs/lb_nodes.conf，可用 LB_NODE_PROFILE 覆盖。
+    // 负载均衡：默认开启，客户端接管组级选盘（水位过滤 + 加权评分）。
+    // 需要回退 FastDFS 原生选盘时，设置环境变量 LB_ENABLE=0 即可。
+    // 节点画像文件默认取 /etc/fdfs/lb_nodes.conf，可用 LB_NODE_PROFILE 覆盖；
+    // 画像缺失不影响正确性——LbTracker 会退回默认同构画像，
+    // 且拉取组信息失败等异常情况均会自动回退到原生接口。
     const char* lb_env = getenv("LB_ENABLE");
-    setLoadBalanceEnabled(lb_env != nullptr && strcmp(lb_env, "0") != 0);
+    setLoadBalanceEnabled(!(lb_env != nullptr && strcmp(lb_env, "0") == 0));
 
     const char* profile = getenv("LB_NODE_PROFILE");
     if (profile == nullptr) profile = "/etc/fdfs/lb_nodes.conf";

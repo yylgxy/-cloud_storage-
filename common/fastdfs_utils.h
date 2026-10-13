@@ -15,8 +15,9 @@ public:
      * 负载均衡开关（可灰度）。
      *   true  —— 上传时由本地改进算法选组（见 lb_tracker.h）
      *   false —— 完全走 FastDFS 原生选盘链路（tracker_query_storage_store_without_group）
-     * 默认关闭，部署时通过 setLoadBalanceEnabled(true) 或环境变量 LB_ENABLE=1 打开，
-     * 出问题可以立刻改配置回退，不需要重新编译。
+     * 默认开启：上传时由本地改进算法接管组级选盘。
+     * 需要回退时通过 setLoadBalanceEnabled(false) 或环境变量 LB_ENABLE=0 关闭，
+     * 不需要重新编译。
      */
     static void setLoadBalanceEnabled(bool enabled);
     static bool isLoadBalanceEnabled();
